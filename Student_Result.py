@@ -483,6 +483,7 @@ with st.expander("Visualizations & History", expanded=False):
 
 st.markdown("---")
 
+# Batch prediction Section
 with st.expander("Batch Predictions (CSV Upload)", expanded=False):
     st.markdown("Upload a CSV containing columns: StudyHours, Attendance, PreviousScore, AssignmentScore, WritingSkills, ReadingSkills, ComputerSkills")
     uploaded = st.file_uploader("Upload CSV for batch prediction", type=['csv'])
@@ -515,29 +516,64 @@ with st.expander("Batch Predictions (CSV Upload)", expanded=False):
                 st.download_button("Download Predictions CSV", csv_bytes, file_name="batch_predictions.csv", mime="text/csv")
 
                 # --- Download PDF Reports ---
-                if st.button("Download PDF Reports for Batch (Gauge Only)"):
-                    all_pdfs = []
-                    for _, r in df_batch.iterrows():
-                        details = {
-                            "Student Index": r.name,
-                            "PredictedPercent": r['PredictedPercent'],
-                            "Grade": r['Grade'],
-                            "PassFail": r['PassFail']
-                        }
-                        # Only gauge chart for simplicity
-                        fig_gauge = go.Figure(go.Indicator(
-                            mode="gauge+number",
-                            value=r['PredictedPercent'],
-                            title={'text': "Predicted Percent"},
-                            gauge={'axis': {'range':[0,100]}}
-                        ))
-                        charts_bytes_student = [fig_gauge.to_image(format="png")]
-                        pdf_bytes_student = create_pdf_report(details, charts_bytes_student)
-                        all_pdfs.append(pdf_bytes_student)
-                    
-                    # For simplicity, download first student PDF as example
-                    st.download_button("Download Example Batch PDF", data=all_pdfs[0],
-                                       file_name="batch_student_report.pdf", mime="application/pdf")
+               if st.button("Download PDF Reports for Batch (Full Visuals)"):
+    if not os.path.exists(DATA_PATH):
+        st.warning("Dataset not found. Cannot generate full visuals.")
+    elif not os.path.exists(XGB_MODEL_FILE):
+        st.warning("Model not found. Cannot generate visuals.")
+    else:
+        df_all = pd.read_csv(DATA_PATH)
+        feats = ['StudyHours','Attendance','PreviousScore','AssignmentScore','WritingSkills','ReadingSkills','ComputerSkills']
+        model = joblib.load(XGB_MODEL_FILE)
+
+        all_pdfs = []
+        for _, r in df_batch.iterrows():
+            details = {
+                "Student Index": r.name,
+                "PredictedPercent": r['PredictedPercent'],
+                "Grade": r['Grade'],
+                "PassFail": r['PassFail']
+            }
+
+            charts_bytes = []
+
+            # --- Gauge Chart ---
+            fig_gauge = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=r['PredictedPercent'],
+                title={'text': "Predicted Percent"},
+                gauge={'axis': {'range':[0,100]}}
+            ))
+            charts_bytes.append(fig_gauge.to_image(format="png"))
+
+            # --- Predicted vs Actual (sample) ---
+            sample = df_all.sample(2000, random_state=42)
+            Xs = sample[feats]
+            ypred = predict_percent(model, Xs)
+            fig_scatter = go.Figure()
+            fig_scatter.add_trace(go.Scatter(x=sample['PercentScore'], y=ypred, mode='markers', name='Predicted vs Actual'))
+            fig_scatter.add_trace(go.Line(x=[0,100], y=[0,100], name='Perfect', line=dict(dash='dash')))
+            fig_scatter.update_layout(title="Actual vs Predicted (sample)", xaxis_title="Actual", yaxis_title="Predicted")
+            charts_bytes.append(fig_scatter.to_image(format="png"))
+
+            # --- Residuals Histogram ---
+            residuals = sample['PercentScore'] - ypred
+            fig_hist = px.histogram(residuals, nbins=50, title="Residuals Distribution")
+            charts_bytes.append(fig_hist.to_image(format="png"))
+
+            # --- Feature Importance ---
+            fi = model.feature_importances_
+            fig_fi = px.bar(x=feats, y=fi, title="Feature Importances (XGBoost)")
+            charts_bytes.append(fig_fi.to_image(format="png"))
+
+            # --- Generate PDF ---
+            pdf_bytes_student = create_pdf_report(details, charts_bytes)
+            all_pdfs.append(pdf_bytes_student)
+
+        # For simplicity, provide first student PDF as example
+        st.download_button("Download Example Batch PDF (Full Visuals)", data=all_pdfs[0],
+                           file_name="batch_student_full_report.pdf", mime="application/pdf")
+
 
                 # --- Save Batch to History ---
                 if st.button("Save Batch to History"):
