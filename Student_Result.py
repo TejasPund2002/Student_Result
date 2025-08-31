@@ -5,6 +5,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 import plotly.express as px
 
+# ===== Use Wide Layout =====
+st.set_page_config(page_title="Student Result Prediction", layout="wide")
+
 # ===== Load model =====
 try:
     model = joblib.load("xgb_student_model.pkl")
@@ -30,21 +33,22 @@ if user_type == "Admin":
 st.markdown("<h1 style='text-align:center;color:#4CAF50;'>Student Result Prediction</h1>", unsafe_allow_html=True)
 st.markdown("---")
 
-# ===== Input Section in Card Style =====
+# ===== Input Section =====
 with st.container():
     st.subheader("Enter Student Details")
     
-    col1, col2 = st.columns(2)
-    with col1:
+    left_col, right_col = st.columns(2)
+
+    with left_col:
         study_hours = st.number_input("Study Hours", min_value=0.0, max_value=20.0, step=0.5)
         previous_score = st.number_input("Previous Score", min_value=0, max_value=100, step=1)
         writing_skills = st.slider("Writing Skills (0-10)", 0, 10, 5)
-    with col2:
+        computer_skills = st.slider("Computer Skills (0-10)", 0, 10, 5)
+
+    with right_col:
         attendance = st.slider("Attendance (%)", 0, 100, 75)
         assignment_score = st.number_input("Assignment Score", min_value=0, max_value=100, step=1)
         reading_skills = st.slider("Reading Skills (0-10)", 0, 10, 5)
-    
-    computer_skills = st.slider("Computer Skills (0-10)", 0, 10, 5)
 
 # ===== Predict Button =====
 if st.button("Predict Result"):
@@ -69,18 +73,15 @@ if st.button("Predict Result"):
     
     status = "Pass" if percent_score >= 40 else "Fail"
     
-    # ===== Display Results in Dynamic Cards =====
+    # ===== Display Results in Dynamic Columns =====
     st.markdown("### Prediction Result")
     col1, col2, col3 = st.columns(3)
     
-    with col1:
-        st.metric("Percent Score", f"{percent_score:.2f}%")
-    with col2:
-        st.metric("Grade", grade)
-    with col3:
-        st.metric("Status", status)
-    
-    # ===== Skills Visualization =====
+    col1.metric("Percent Score", f"{percent_score:.2f}%")
+    col2.metric("Grade", grade)
+    col3.metric("Status", status)
+
+    # ===== Skills Bar Chart =====
     skills = pd.DataFrame({
         "Skill": ["Writing", "Reading", "Computer"],
         "Score": [writing_skills, reading_skills, computer_skills]
