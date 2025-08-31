@@ -3,7 +3,7 @@ import pandas as pd
 import joblib
 
 # ===== Load your model =====
-model = joblib.load("student_result_model.pkl")  # replace with your model file
+model = joblib.load("xgb_student_model.pkl")  # replace with your model file
 
 st.title("Student Result Prediction App")
 
