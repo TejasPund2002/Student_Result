@@ -395,6 +395,8 @@ if os.path.exists(DATA_PATH):
         nbins=50, 
         title="Dataset Percent Distribution"
     )
+    # Example: use the first student's predicted percent
+    pred = predict_percent(model, input_df)[0]
     fig_hist.add_vline(
         x=pred, 
         line_dash="dash", 
