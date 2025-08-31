@@ -417,12 +417,11 @@ if os.path.exists(DATA_PATH):
 
                 pdf_bytes = create_pdf_report(details, charts_bytes)
 
-st.download_button(
-    label="Download Full Report (PDF with all visuals)",
-    data=pdf_bytes,
-    file_name="report_full.pdf",
-    mime="application/pdf"
-)
+                st.download_button(
+                label="Download Full Report (PDF with all visuals)",
+                data=pdf_bytes,
+                file_name="report_full.pdf",
+                mime="application/pdf")
 
 
     with predict_col2:
