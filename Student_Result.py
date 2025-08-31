@@ -198,14 +198,25 @@ if 'percent_score' in locals():  # Ensure prediction is done
             fig_line.update_traces(marker=dict(size=12))
             st.plotly_chart(fig_line, use_container_width=True)
 
-# ===== Study Plan Section =====
-if 'percent_score' in locals():  # Ensure prediction is done
+# ===== Study Plan Section (Persistent) =====
+if 'percent_score' in st.session_state:  # Ensure prediction is done
     with st.expander("📅 Generate Study Plan"):
         st.subheader("Plan Your Study to Reach Target Score")
         
         # Inputs from user
-        expected_score = st.number_input("Enter Your Expected Score (%)", min_value=0, max_value=100, value=80, step=1)
-        exam_date = st.date_input("Select Exam Date")
+        if 'expected_score' not in st.session_state:
+            st.session_state.expected_score = 80
+        if 'exam_date' not in st.session_state:
+            st.session_state.exam_date = pd.to_datetime("2025-10-01").date()
+        
+        expected_score = st.number_input(
+            "Enter Your Expected Score (%)", min_value=0, max_value=100, 
+            value=st.session_state.expected_score, step=1
+        )
+        st.session_state.expected_score = expected_score
+        
+        exam_date = st.date_input("Select Exam Date", value=st.session_state.exam_date)
+        st.session_state.exam_date = exam_date
         
         # Calculate days left
         from datetime import date
@@ -215,13 +226,16 @@ if 'percent_score' in locals():  # Ensure prediction is done
         else:
             st.info(f"Days left until exam: {days_left} days")
             
+            # Retrieve current predicted score from session_state
+            percent_score = st.session_state.percent_score
+            
             # Calculate improvement needed
             improvement_needed = max(0, expected_score - percent_score)
             st.write(f"Current predicted score: {percent_score:.2f}%")
             st.write(f"Target score: {expected_score}%")
             st.write(f"Score improvement needed: {improvement_needed:.2f}%")
             
-            # Suggest daily improvement target
+            # Suggested daily improvement target
             daily_target = improvement_needed / days_left
             st.write(f"Recommended daily improvement: {daily_target:.2f}% per day")
             
@@ -242,7 +256,7 @@ if 'percent_score' in locals():  # Ensure prediction is done
             fig_plan.update_layout(title="Current vs Target Score", yaxis=dict(range=[0,100]))
             st.plotly_chart(fig_plan, use_container_width=True)
             
-            # Progress Line Chart (Daily Target Progress)
+            # Line Chart for daily plan
             daily_plan = pd.DataFrame({
                 "Day": list(range(1, days_left+1)),
                 "Target Increment": [daily_target]*days_left
@@ -253,14 +267,14 @@ if 'percent_score' in locals():  # Ensure prediction is done
             )
             st.plotly_chart(fig_line, use_container_width=True)
             
-            # Skill Improvement Radar (based on input skills)
+            # Skill Improvement Radar
             skill_plan = pd.DataFrame({
                 "Skill": ["Writing", "Reading", "Computer"],
-                "Current": [writing_skills, reading_skills, computer_skills],
+                "Current": [st.session_state.writing_skills, st.session_state.reading_skills, st.session_state.computer_skills],
                 "Target": [
-                    min(10, writing_skills + daily_target/10),
-                    min(10, reading_skills + daily_target/10),
-                    min(10, computer_skills + daily_target/10)
+                    min(10, st.session_state.writing_skills + daily_target/10),
+                    min(10, st.session_state.reading_skills + daily_target/10),
+                    min(10, st.session_state.computer_skills + daily_target/10)
                 ]
             })
             fig_radar_plan = go.Figure()
