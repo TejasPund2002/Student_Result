@@ -11,3 +11,5 @@ joblib
 fpdf
 ics
 kaleido
+reportlab
+Pillow
