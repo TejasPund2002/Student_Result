@@ -388,37 +388,71 @@ with st.expander("Student Input & Prediction", expanded=True):
 # Dataset histogram with predicted marker
 if os.path.exists(DATA_PATH):
     df_all = pd.read_csv(DATA_PATH)
-    fig_hist = px.histogram(df_all, x='PercentScore', nbins=50, title="Dataset Percent Distribution")
-    fig_hist.add_vline(x=pred, line_dash="dash", annotation_text="Predicted", annotation_position="top right")
+    
+    fig_hist = px.histogram(
+        df_all, 
+        x='PercentScore', 
+        nbins=50, 
+        title="Dataset Percent Distribution"
+    )
+    fig_hist.add_vline(
+        x=pred, 
+        line_dash="dash", 
+        annotation_text="Predicted", 
+        annotation_position="top right"
+    )
     charts_bytes.append(fig_hist.to_image(format="png"))
 
     # Feature importance
     if hasattr(model, "feature_importances_"):
         fi = model.feature_importances_
-        feats = ['StudyHours','Attendance','PreviousScore','AssignmentScore','WritingSkills','ReadingSkills','ComputerSkills']
+        feats = [
+            'StudyHours', 'Attendance', 'PreviousScore', 
+            'AssignmentScore', 'WritingSkills', 'ReadingSkills', 'ComputerSkills'
+        ]
         fig_fi = px.bar(x=feats, y=fi, title="Feature Importances")
         charts_bytes.append(fig_fi.to_image(format="png"))
 
     # Predicted vs Actual
     sample = df_all.sample(2000, random_state=42)
-    Xs = sample[['StudyHours','Attendance','PreviousScore','AssignmentScore','WritingSkills','ReadingSkills','ComputerSkills']]
+    Xs = sample[[
+        'StudyHours', 'Attendance', 'PreviousScore', 
+        'AssignmentScore', 'WritingSkills', 'ReadingSkills', 'ComputerSkills'
+    ]]
     ypred_sample = predict_percent(model, Xs)
+
     fig_pa = go.Figure()
-    fig_pa.add_trace(go.Scatter(x=sample['PercentScore'], y=ypred_sample, mode='markers', name='Predicted vs Actual'))
-    fig_pa.add_trace(go.Line(x=[0,100], y=[0,100], name='Perfect', line=dict(dash='dash')))
-    fig_pa.update_layout(title="Actual vs Predicted", xaxis_title="Actual", yaxis_title="Predicted")
+    fig_pa.add_trace(go.Scatter(
+        x=sample['PercentScore'], 
+        y=ypred_sample, 
+        mode='markers', 
+        name='Predicted vs Actual'
+    ))
+    fig_pa.add_trace(go.Line(
+        x=[0,100], 
+        y=[0,100], 
+        name='Perfect', 
+        line=dict(dash='dash')
+    ))
+    fig_pa.update_layout(
+        title="Actual vs Predicted", 
+        xaxis_title="Actual", 
+        yaxis_title="Predicted"
+    )
     charts_bytes.append(fig_pa.to_image(format="png"))
 
     # Residuals
     residuals = sample['PercentScore'] - ypred_sample
     fig_res = px.histogram(residuals, nbins=50, title="Residuals Distribution")
     charts_bytes.append(fig_res.to_image(format="png"))
+
     pdf_bytes = create_pdf_report(details, charts_bytes)
     st.download_button(
-                label="Download Full Report (PDF with all visuals)",
-                data=pdf_bytes,
-                file_name="report_full.pdf",
-                mime="application/pdf")
+        label="Download Full Report (PDF with all visuals)",
+        data=pdf_bytes,
+        file_name="report_full.pdf",
+        mime="application/pdf"
+    )
 
 
 with predict_col2:
