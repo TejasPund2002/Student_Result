@@ -186,19 +186,30 @@ def generate_weekly_plan(current_vals, predicted, target, exam_date):
 
 import tempfile
 
-def create_pdf_report(details, charts_bytes):
+def create_pdf_report(details, charts_bytes_list):
+    """
+    details: dict of key:value to show text info
+    charts_bytes_list: list of bytes objects (each chart as PNG bytes)
+    """
+    from fpdf import FPDF
+
     pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     pdf.set_font("Arial", size=12)
 
-    for key, value in details.items():
-        pdf.cell(200, 10, txt=f"{key}: {value}", ln=True)
+    # Add student details
+    for key, val in details.items():
+        pdf.multi_cell(0, 8, f"{key}: {val}")
+    pdf.ln(5)
 
-    for chart in charts_bytes:
+    # Add all charts
+    for chart_bytes in charts_bytes_list:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
-            tmpfile.write(chart)   # chart bytes save
+            tmpfile.write(chart_bytes)
             tmpfile.flush()
-            pdf.image(tmpfile.name, x=10, y=None, w=180)
+            pdf.add_page()
+            pdf.image(tmpfile.name, x=10, y=25, w=180)
 
     return pdf.output(dest="S").encode("latin1")
 
@@ -257,20 +268,20 @@ if login_btn:
 
 # Main layout: combine sections in accordion/expander for flow
 with st.expander("Student Input & Prediction", expanded=True):
-    st.subheader("Enter Student Details / विद्यार्थी माहिती भरा")
+    st.subheader("Enter Student Details")
     col1, col2, col3 = st.columns(3)
     with col1:
-        study_hours = st.slider("Study Hours per Day (तास/दिवस):", 0.0, 12.0, 2.5, step=0.5)
-        attendance = st.slider("Attendance (%) उपस्थिती:", 0, 100, 75)
-        previous_score = st.slider("Previous Score (%) मागील गुण:", 0, 100, 60)
+        study_hours = st.slider("Study Hours per Day:", 0.0, 12.0, 2.5, step=0.5)
+        attendance = st.slider("Attendance (%):", 0, 100, 75)
+        previous_score = st.slider("Previous Score:", 0, 100, 60)
     with col2:
-        assignment_score = st.slider("Assignment Score (%) असाइन्मेंट:", 0,100,50)
+        assignment_score = st.slider("Assignment Score (%):", 0,100,50)
         writing_skills = st.slider("Writing Skills (1-10):", 1,10,7)
         reading_skills = st.slider("Reading Skills (1-10):",1,10,5)
     with col3:
         computer_skills = st.slider("Computer Skills (1-10):",1,10,8)
-        target_score = st.slider("Target Score (%) लक्ष्य:", 0,100,85)
-        exam_date = st.date_input("Exam Date परीक्षा तारीख:", value=(datetime.now().date() + relativedelta(days=31)))
+        target_score = st.slider("Target Score (%):", 0,100,85)
+        exam_date = st.date_input("Exam Date:", value=(datetime.now().date() + relativedelta(days=31)))
     st.markdown("---")
     # What-if interactive sliders
     with st.expander("Interactive What-If Simulator (Slide to see predicted change)", expanded=False):
@@ -331,7 +342,7 @@ with st.expander("Student Input & Prediction", expanded=True):
                 save_history(row)
                 # Guidance plan
                 plan_df = generate_weekly_plan(row, pred, target_score, exam_date)
-                st.subheader("Guidance Plan / योजना (Weekly targets)")
+                st.subheader("Guidance Plan")
                 st.dataframe(plan_df)
                 # ICS export button
                 ics_text = create_ics_plan(plan_df, student_name=username, start_date=None)
@@ -363,22 +374,56 @@ with st.expander("Student Input & Prediction", expanded=True):
                     buf1 = fallback_generic_plot_bytes(pred_value=pred)
 
                 # Histogram: where this student lies vs dataset (if dataset exists)
-                charts_bytes = [buf1]
-                if os.path.exists(DATA_PATH):
-                    df_all = pd.read_csv(DATA_PATH)
-                    fig2 = px.histogram(df_all, x='PercentScore', nbins=50, title="Dataset Percent Distribution")
-                    fig2.add_vline(x=pred, line_dash="dash", annotation_text="Predicted", annotation_position="top right")
-                    # show in UI
-                    st.plotly_chart(fig2, use_container_width=True)
-                    # create safe PNG bytes
-                    try:
-                        buf2 = fig_to_png_bytes(fig2, pred_value=pred, dataset_series=df_all['PercentScore'])
-                    except Exception:
-                        buf2 = fallback_generic_plot_bytes(pred_value=pred, dataset_series=df_all['PercentScore'])
-                    charts_bytes.append(buf2)
+                charts_bytes = []
+
+# Gauge chart (Predicted %)
+fig_gauge = go.Figure(go.Indicator(
+    mode="gauge+number",
+    value=pred,
+    title={'text': "Predicted Percent"},
+    gauge={'axis': {'range':[0,100]}}
+))
+charts_bytes.append(fig_gauge.to_image(format="png"))
+
+# Dataset histogram with predicted marker
+if os.path.exists(DATA_PATH):
+    df_all = pd.read_csv(DATA_PATH)
+    fig_hist = px.histogram(df_all, x='PercentScore', nbins=50, title="Dataset Percent Distribution")
+    fig_hist.add_vline(x=pred, line_dash="dash", annotation_text="Predicted", annotation_position="top right")
+    charts_bytes.append(fig_hist.to_image(format="png"))
+
+    # Feature importance
+    if hasattr(model, "feature_importances_"):
+        fi = model.feature_importances_
+        feats = ['StudyHours','Attendance','PreviousScore','AssignmentScore','WritingSkills','ReadingSkills','ComputerSkills']
+        fig_fi = px.bar(x=feats, y=fi, title="Feature Importances")
+        charts_bytes.append(fig_fi.to_image(format="png"))
+
+    # Predicted vs Actual
+    sample = df_all.sample(2000, random_state=42)
+    Xs = sample[['StudyHours','Attendance','PreviousScore','AssignmentScore','WritingSkills','ReadingSkills','ComputerSkills']]
+    ypred_sample = predict_percent(model, Xs)
+    fig_pa = go.Figure()
+    fig_pa.add_trace(go.Scatter(x=sample['PercentScore'], y=ypred_sample, mode='markers', name='Predicted vs Actual'))
+    fig_pa.add_trace(go.Line(x=[0,100], y=[0,100], name='Perfect', line=dict(dash='dash')))
+    fig_pa.update_layout(title="Actual vs Predicted", xaxis_title="Actual", yaxis_title="Predicted")
+    charts_bytes.append(fig_pa.to_image(format="png"))
+
+    # Residuals
+    residuals = sample['PercentScore'] - ypred_sample
+    fig_res = px.histogram(residuals, nbins=50, title="Residuals Distribution")
+    charts_bytes.append(fig_res.to_image(format="png"))
+
 
                 pdf_bytes = create_pdf_report(details, charts_bytes)
-                st.download_button(label="Download PDF Report",data=pdf_bytes,file_name="report.pdf",mime="application/pdf")
+
+st.download_button(
+    label="Download Full Report (PDF with all visuals)",
+    data=pdf_bytes,
+    file_name="report_full.pdf",
+    mime="application/pdf"
+)
+
 
     with predict_col2:
         # Quick model metrics display (if test_info available or if model file exists)
@@ -438,32 +483,64 @@ with st.expander("Visualizations & History", expanded=False):
 
 st.markdown("---")
 
-# Batch predictions via CSV upload
 with st.expander("Batch Predictions (CSV Upload)", expanded=False):
     st.markdown("Upload a CSV containing columns: StudyHours, Attendance, PreviousScore, AssignmentScore, WritingSkills, ReadingSkills, ComputerSkills")
     uploaded = st.file_uploader("Upload CSV for batch prediction", type=['csv'])
+    
     if uploaded is not None:
         df_batch = pd.read_csv(uploaded)
         required_cols = ['StudyHours','Attendance','PreviousScore','AssignmentScore','WritingSkills','ReadingSkills','ComputerSkills']
+        
         if not all([c in df_batch.columns for c in required_cols]):
             st.error(f"CSV missing required columns. Ensure columns: {required_cols}")
         else:
+            # Load model
             model = None
             if os.path.exists(XGB_MODEL_FILE):
                 model = joblib.load(XGB_MODEL_FILE)
             else:
                 st.warning("No model found. Please go to Admin > Retrain to train model.")
+            
             if model is not None:
+                # Predictions
                 preds = predict_percent(model, df_batch[required_cols])
                 df_batch['PredictedPercent'] = np.round(preds,2)
                 df_batch['Grade'] = df_batch['PredictedPercent'].apply(grade_from_score)
                 df_batch['PassFail'] = df_batch['PredictedPercent'].apply(passfail_from_score)
+
                 st.dataframe(df_batch.head(200))
-                # download option
+
+                # --- Download CSV ---
                 csv_bytes = df_batch.to_csv(index=False).encode()
                 st.download_button("Download Predictions CSV", csv_bytes, file_name="batch_predictions.csv", mime="text/csv")
-                # optionally save to history
-                if st.button("Save batch to history"):
+
+                # --- Download PDF Reports ---
+                if st.button("Download PDF Reports for Batch (Gauge Only)"):
+                    all_pdfs = []
+                    for _, r in df_batch.iterrows():
+                        details = {
+                            "Student Index": r.name,
+                            "PredictedPercent": r['PredictedPercent'],
+                            "Grade": r['Grade'],
+                            "PassFail": r['PassFail']
+                        }
+                        # Only gauge chart for simplicity
+                        fig_gauge = go.Figure(go.Indicator(
+                            mode="gauge+number",
+                            value=r['PredictedPercent'],
+                            title={'text': "Predicted Percent"},
+                            gauge={'axis': {'range':[0,100]}}
+                        ))
+                        charts_bytes_student = [fig_gauge.to_image(format="png")]
+                        pdf_bytes_student = create_pdf_report(details, charts_bytes_student)
+                        all_pdfs.append(pdf_bytes_student)
+                    
+                    # For simplicity, download first student PDF as example
+                    st.download_button("Download Example Batch PDF", data=all_pdfs[0],
+                                       file_name="batch_student_report.pdf", mime="application/pdf")
+
+                # --- Save Batch to History ---
+                if st.button("Save Batch to History"):
                     for _, r in df_batch.iterrows():
                         row = {
                             'timestamp': datetime.now().isoformat(),
@@ -556,4 +633,4 @@ with st.expander("Admin / Model Management", expanded=False):
                 st.success("Model comparison complete. You can choose to save best model.")
 
 st.markdown("---")
-st.info("End of App. For further customizations (auth, DB, production deployment), ask me and I'll extend.")
+st.info("End of App. Created By Shekhar Shelke Contact-shekharshelke45@gmail.com")
