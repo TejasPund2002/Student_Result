@@ -25,7 +25,6 @@ XGB_MODEL_FILE ="xgb_student_model.pkl"# optional
 HISTORY_FILE = "prediction_history.csv"
 USERS_FILE = "users_local.json"   # simple local user store for demo
 
-os.makedirs(MODEL_DIR, exist_ok=True)
 # ---------- Helper functions ----------
 def load_or_train_xgb():
     # Try load existing model
