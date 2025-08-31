@@ -288,3 +288,80 @@ if 'percent_score' in st.session_state:  # Ensure prediction is done
             )
             
             st.plotly_chart(fig_table, use_container_width=True)
+
+# ===== Generate PDF Report =====
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+import tempfile, os
+
+def save_plotly_fig(fig, filename):
+    fig.write_image(filename, format="png")
+
+if 'percent_score' in st.session_state:
+    with st.expander("📥 Download Full Report (PDF)"):
+        st.subheader("Generate Personalized Roadmap Report")
+
+        if st.button("Generate PDF Report"):
+            # Temp directory
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                elements = []
+                styles = getSampleStyleSheet()
+                title_style = ParagraphStyle(
+                    name='Title',
+                    fontSize=20,
+                    alignment=1,
+                    textColor=colors.HexColor("#4A90E2"),
+                    spaceAfter=20
+                )
+                normal_style = styles["Normal"]
+
+                # === Title Page ===
+                elements.append(Paragraph("📘 Student Result Prediction Report", title_style))
+                elements.append(Paragraph(f"Predicted Score: {st.session_state.percent_score:.2f}%", normal_style))
+                elements.append(Paragraph(f"Target Exam Preparation Plan", normal_style))
+                elements.append(Spacer(1, 20))
+
+                # === Save and Insert Visualizations ===
+                figs = [fig_bar, fig_pie, fig_radar, fig_line, fig_table]  # from your code
+                fig_files = []
+
+                for i, fig in enumerate(figs):
+                    fpath = os.path.join(tmpdirname, f"fig_{i}.png")
+                    save_plotly_fig(fig, fpath)
+                    fig_files.append(fpath)
+
+                for f in fig_files:
+                    elements.append(RLImage(f, width=400, height=250))
+                    elements.append(Spacer(1, 12))
+
+                # === Weekly Study Plan Table ===
+                df_weekly = pd.DataFrame(weekly_plan)
+                data = [list(df_weekly.columns)] + df_weekly.values.tolist()
+                table = Table(data, hAlign="CENTER")
+                table.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4A90E2")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 10),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ]))
+                elements.append(Spacer(1, 20))
+                elements.append(Paragraph("📅 Weekly Study Plan", title_style))
+                elements.append(table)
+
+                # === Save PDF ===
+                pdf_path = os.path.join(tmpdirname, "Student_Report.pdf")
+                doc = SimpleDocTemplate(pdf_path, pagesize=A4)
+                doc.build(elements)
+
+                with open(pdf_path, "rb") as pdf_file:
+                    st.download_button(
+                        label="⬇️ Download Report as PDF",
+                        data=pdf_file,
+                        file_name="Student_Report.pdf",
+                        mime="application/pdf"
+                    )
