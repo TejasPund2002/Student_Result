@@ -289,79 +289,76 @@ if 'percent_score' in st.session_state:  # Ensure prediction is done
             
             st.plotly_chart(fig_table, use_container_width=True)
 
-# ===== Generate PDF Report =====
+# ====== PDF Export Section ======
+import matplotlib.pyplot as plt
+import plotly.io as pio
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
-import tempfile, os
+from reportlab.lib.styles import getSampleStyleSheet
+import tempfile
+import os
 
-def save_plotly_fig(fig, filename):
-    fig.write_image(filename, format="png")
+def export_pdf(prediction, figs, study_plan_df, filename="Student_Report.pdf"):
+    styles = getSampleStyleSheet()
+    doc = SimpleDocTemplate(filename)
+    elements = []
 
-if 'percent_score' in st.session_state:
-    with st.expander("📥 Download Full Report (PDF)"):
-        st.subheader("Generate Personalized Roadmap Report")
+    # ---- Title ----
+    elements.append(Paragraph("<b>Student Performance Report</b>", styles['Title']))
+    elements.append(Spacer(1, 12))
 
-        if st.button("Generate PDF Report"):
-            # Temp directory
-            with tempfile.TemporaryDirectory() as tmpdirname:
-                elements = []
-                styles = getSampleStyleSheet()
-                title_style = ParagraphStyle(
-                    name='Title',
-                    fontSize=20,
-                    alignment=1,
-                    textColor=colors.HexColor("#4A90E2"),
-                    spaceAfter=20
-                )
-                normal_style = styles["Normal"]
+    # ---- Prediction Results ----
+    elements.append(Paragraph("<b>Prediction Output</b>", styles['Heading2']))
+    elements.append(Paragraph(f"Predicted Performance Score: <b>{prediction:.2f}</b>", styles['Normal']))
+    elements.append(Spacer(1, 12))
 
-                # === Title Page ===
-                elements.append(Paragraph("📘 Student Result Prediction Report", title_style))
-                elements.append(Paragraph(f"Predicted Score: {st.session_state.percent_score:.2f}%", normal_style))
-                elements.append(Paragraph(f"Target Exam Preparation Plan", normal_style))
-                elements.append(Spacer(1, 20))
+    # ---- Charts Section ----
+    elements.append(Paragraph("<b>Visualizations</b>", styles['Heading2']))
 
-                # === Save and Insert Visualizations ===
-                figs = [fig_bar, fig_pie, fig_radar, fig_line, fig_table]  # from your code
-                fig_files = []
+    temp_images = []
+    for i, fig in enumerate(figs):
+        tmpfile = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+        pio.write_image(fig, tmpfile.name, format="png", width=600, height=400, scale=2)
+        temp_images.append(tmpfile.name)
+        elements.append(RLImage(tmpfile.name, width=400, height=300))
+        elements.append(Spacer(1, 12))
 
-                for i, fig in enumerate(figs):
-                    fpath = os.path.join(tmpdirname, f"fig_{i}.png")
-                    save_plotly_fig(fig, fpath)
-                    fig_files.append(fpath)
+    # ---- Study Plan Section ----
+    elements.append(Paragraph("<b>Study Plan</b>", styles['Heading2']))
+    study_plan_data = [study_plan_df.columns.tolist()] + study_plan_df.values.tolist()
+    table = Table(study_plan_data)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#4CAF50")),
+        ("TEXTCOLOR", (0,0), (-1,0), colors.whitesmoke),
+        ("ALIGN", (0,0), (-1,-1), "CENTER"),
+        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+        ("FONTSIZE", (0,0), (-1,-1), 9),
+        ("BOTTOMPADDING", (0,0), (-1,0), 10),
+        ("BACKGROUND", (0,1), (-1,-1), colors.beige),
+        ("GRID", (0,0), (-1,-1), 0.5, colors.black),
+    ]))
+    elements.append(table)
 
-                for f in fig_files:
-                    elements.append(RLImage(f, width=400, height=250))
-                    elements.append(Spacer(1, 12))
+    # ---- Build PDF ----
+    doc.build(elements)
 
-                # === Weekly Study Plan Table ===
-                df_weekly = pd.DataFrame(weekly_plan)
-                data = [list(df_weekly.columns)] + df_weekly.values.tolist()
-                table = Table(data, hAlign="CENTER")
-                table.setStyle(TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4A90E2")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 10),
-                    ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                ]))
-                elements.append(Spacer(1, 20))
-                elements.append(Paragraph("📅 Weekly Study Plan", title_style))
-                elements.append(table)
+    # ---- Cleanup temp images ----
+    for img in temp_images:
+        os.remove(img)
 
-                # === Save PDF ===
-                pdf_path = os.path.join(tmpdirname, "Student_Report.pdf")
-                doc = SimpleDocTemplate(pdf_path, pagesize=A4)
-                doc.build(elements)
+    return filename
 
-                with open(pdf_path, "rb") as pdf_file:
-                    st.download_button(
-                        label="⬇️ Download Report as PDF",
-                        data=pdf_file,
-                        file_name="Student_Report.pdf",
-                        mime="application/pdf"
-                    )
+
+# ====== Example Usage inside Streamlit ======
+if st.button("Download Report as PDF"):
+    # Make sure you have prediction value, figs, and study_plan_df ready
+    figs = [fig_bar, fig_pie, fig_radar, fig_line]  # only actual chart figs
+    pdf_file = export_pdf(prediction, figs, study_plan_df)
+
+    with open(pdf_file, "rb") as f:
+        st.download_button(
+            label="📥 Download Student Report",
+            data=f,
+            file_name="Student_Report.pdf",
+            mime="application/pdf"
+        )
