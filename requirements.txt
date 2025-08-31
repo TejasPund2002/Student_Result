@@ -10,3 +10,4 @@ plotly
 joblib
 fpdf
 ics
+kaleido
