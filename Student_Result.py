@@ -184,35 +184,19 @@ def generate_weekly_plan(current_vals, predicted, target, exam_date):
         })
     return pd.DataFrame(plan)
 
-def create_pdf_report(details, charts_bytes=None, filename="report.pdf"):
-    # details: dict
+def create_pdf_report(details, charts_bytes):
     pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
-    pdf.set_font("Arial", size=14)
-    pdf.cell(0, 10, "Student Performance Report", ln=True, align='C')
-    pdf.ln(5)
-    pdf.set_font("Arial", size=11)
-    for k,v in details.items():
-        pdf.multi_cell(0, 8, f"{k}: {v}")
-    pdf.ln(5)
-    # If charts_bytes is list of image bytes, add them
-    if charts_bytes:
-        for i, b in enumerate(charts_bytes):
-            # write temporary png
-            tmp_path = f"_tmp_chart_{i}.png"
-            with open(tmp_path, "wb") as f:
-                f.write(b)
-            pdf.add_page()
-            pdf.image(tmp_path, x=15, y=25, w=180)
-            try:
-                os.remove(tmp_path)
-            except:
-                pass
-    out = io.BytesIO()
-    pdf.output(out)
-    out.seek(0)
-    return out
+    pdf.set_font("Arial", size=12)
+
+    # उदाहरण - Details लिहिण्यासाठी
+    for key, value in details.items():
+        pdf.cell(200, 10, txt=f"{key}: {value}", ln=True)
+
+    # Charts add करायचे असल्यास:
+    for chart in charts_bytes:
+        pdf.image(chart, x=10, y=None, w=180)
+    return pdf.output(dest="S").encode("latin1")
 
 def create_ics_plan(plan_df, student_name="student", start_date=None):
     cal = Calendar()
@@ -389,7 +373,7 @@ with st.expander("Student Input & Prediction", expanded=True):
                     charts_bytes.append(buf2)
 
                 pdf_bytes = create_pdf_report(details, charts_bytes)
-                st.download_button("Download Report (PDF)", pdf_bytes, file_name="report.pdf", mime="application/pdf")
+                st.download_button(label="Download PDF Report",data=pdf_bytes,file_name="report.pdf",mime="application/pdf")
 
     with predict_col2:
         # Quick model metrics display (if test_info available or if model file exists)
