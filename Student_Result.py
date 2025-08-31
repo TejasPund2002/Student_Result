@@ -208,7 +208,7 @@ if 'percent_score' in locals():  # Ensure prediction is done
             fig_line.update_traces(marker=dict(size=12))
             st.plotly_chart(fig_line, use_container_width=True)
 
-# ===== Weekly Study Plan Table (Styled & Rounded) =====
+# ===== Weekly Study Plan Table (Styled & Rounded) ===== 
 if 'percent_score' in st.session_state:  # Ensure prediction is done
     with st.expander("📅 Weekly Study Plan"):
         st.subheader("Plan Your Weekly Study to Reach Target Score")
@@ -249,12 +249,12 @@ if 'percent_score' in st.session_state:  # Ensure prediction is done
             for week in range(1, weeks_left + 1):
                 plan = {
                     "Week": f"Week {week}",
-                    "Study Hours": round(base_values["Study Hours"] + weekly_improvement*0.5*week, 1),
-                    "Attendance": round(min(100, base_values["Attendance"] + weekly_improvement*0.2*week), 1),
-                    "Assignment Score": round(base_values["Assignment Score"] + weekly_improvement*0.3*week, 1),
-                    "Writing": round(min(10, base_values["Writing"] + weekly_improvement*0.1*week), 1),
-                    "Reading": round(min(10, base_values["Reading"] + weekly_improvement*0.1*week), 1),
-                    "Computer": round(min(10, base_values["Computer"] + weekly_improvement*0.1*week), 1)
+                    "Study Hours": round(base_values["Study Hours"] + weekly_improvement*0.5*week, 2),
+                    "Attendance": round(min(100, base_values["Attendance"] + weekly_improvement*0.2*week), 2),
+                    "Assignment Score": round(base_values["Assignment Score"] + weekly_improvement*0.3*week, 2),
+                    "Writing": round(min(10, base_values["Writing"] + weekly_improvement*0.1*week), 2),
+                    "Reading": round(min(10, base_values["Reading"] + weekly_improvement*0.1*week), 2),
+                    "Computer": round(min(10, base_values["Computer"] + weekly_improvement*0.1*week), 2)
                 }
                 weekly_plan.append(plan)
             
@@ -269,14 +269,15 @@ if 'percent_score' in st.session_state:  # Ensure prediction is done
                     values=list(df_weekly.columns),
                     fill_color='#4A90E2',
                     font=dict(color='white', size=14, family="Arial Black"),
-                    align='center'
+                    align='center',
+                    height=35   # ✅ Taller header row
                 ),
                 cells=dict(
                     values=[df_weekly[col] for col in df_weekly.columns],
                     fill_color=[colors * math.ceil(len(df_weekly)/2)],
                     align='center',
                     font=dict(color='#0D47A1', size=12, family="Segoe UI"),
-                    height=28
+                    height=30   # ✅ Consistent row height
                 )
             )])
             
