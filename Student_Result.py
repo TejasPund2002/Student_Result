@@ -389,12 +389,8 @@ with st.expander("Student Input & Prediction", expanded=True):
 if os.path.exists(DATA_PATH):
     df_all = pd.read_csv(DATA_PATH)
 
-    # Define pred from batch predictions if available
-    if 'PredictedPercent' in df_batch.columns:
-        # Use the first student predicted score as reference
-        pred = df_batch['PredictedPercent'].iloc[0]
-    else:
-        pred = None  # fallback if batch predictions not present
+    # Define pred from previous details dict
+    pred = details.get("PredictedPercent", None)
 
     # Dataset histogram
     fig_hist = px.histogram(df_all, x='PercentScore', nbins=50, title="Dataset Percent Distribution")
