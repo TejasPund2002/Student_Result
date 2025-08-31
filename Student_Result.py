@@ -30,8 +30,49 @@ if user_type == "Admin":
             st.sidebar.error("Invalid Credentials")
 
 # ===== App Title =====
-st.markdown("<h1 style='text-align:center;color:#4CAF50;'>Student Result Prediction</h1>", unsafe_allow_html=True)
-st.markdown("---")
+import streamlit as st
+
+# Custom CSS for design and layout
+st.markdown("""
+    <style>
+        .title {
+            text-align: center;
+            font-size: 2.5rem;
+            font-weight: bold;
+            background: linear-gradient(45deg, #4A90E2, #50E3C2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 1rem;
+            color: #2C3E50;
+            margin-top: -10px;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .divider {
+            border: none;
+            height: 3px;
+            background: linear-gradient(to right, #4A90E2, #50E3C2);
+            margin: 20px 0;
+        }
+        .logo-container {
+            display: flex;
+            justify-content: center;
+        }
+        img.logo {
+            width: 80px;
+            margin-bottom: 10px;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# Layout: Logo centered above header
+st.markdown("<div class='logo-container'><img src='https://cdn-icons-png.flaticon.com/512/8833/8833036.png' class='logo'></div>", unsafe_allow_html=True)
+st.markdown("<h1 class='title'>Student Result Prediction</h1>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>An AI-powered tool to forecast student outcomes</p>", unsafe_allow_html=True)
+st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
 
 # ===== Input Section =====
 with st.container():
