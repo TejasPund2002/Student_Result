@@ -208,7 +208,7 @@ if 'percent_score' in locals():  # Ensure prediction is done
             fig_line.update_traces(marker=dict(size=12))
             st.plotly_chart(fig_line, use_container_width=True)
 
-# ===== Weekly Study Plan Table =====
+# ===== Weekly Study Plan Table (Styled & Rounded) =====
 if 'percent_score' in st.session_state:  # Ensure prediction is done
     with st.expander("📅 Weekly Study Plan"):
         st.subheader("Plan Your Weekly Study to Reach Target Score")
@@ -255,7 +255,7 @@ if 'percent_score' in st.session_state:  # Ensure prediction is done
                 "Computer": st.session_state.computer_skills
             }
             
-            # Assign weekly plan (example proportional increments)
+            # Assign weekly plan (rounded values)
             weekly_plan = []
             for week in range(1, weeks_left+1):
                 plan = {
@@ -272,22 +272,30 @@ if 'percent_score' in st.session_state:  # Ensure prediction is done
             # Create DataFrame
             df_weekly = pd.DataFrame(weekly_plan)
             
-            # Display interactive table using Plotly
+            # Display interactive table using Plotly with theme
             import plotly.graph_objects as go
+            colors = ['#E0F7FA', '#B2EBF2']  # Alternating row colors
+            
             fig_table = go.Figure(data=[go.Table(
                 header=dict(
                     values=list(df_weekly.columns),
                     fill_color='#4A90E2',
-                    font=dict(color='white', size=14),
+                    font=dict(color='white', size=14, family="Arial Black"),
                     align='center'
                 ),
                 cells=dict(
                     values=[df_weekly[col] for col in df_weekly.columns],
-                    fill_color=[['#E8F6F3','#D5F5E3']*math.ceil(len(df_weekly)/2)],
+                    fill_color=[colors * math.ceil(len(df_weekly)/2)],
                     align='center',
-                    font=dict(color='black', size=12)
+                    font=dict(color='#0B3D91', size=12, family="Arial"),
+                    height=30
                 )
             )])
             
-            fig_table.update_layout(margin=dict(l=0,r=0,t=20,b=20))
+            fig_table.update_layout(
+                margin=dict(l=0,r=0,t=20,b=20),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)'
+            )
+            
             st.plotly_chart(fig_table, use_container_width=True)
