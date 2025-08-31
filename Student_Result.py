@@ -98,6 +98,16 @@ if st.button("Predict Result"):
     
     percent_score = model.predict(input_data)[0]
     
+    # Store values in session_state for persistence
+    st.session_state.percent_score = percent_score
+    st.session_state.writing_skills = writing_skills
+    st.session_state.reading_skills = reading_skills
+    st.session_state.computer_skills = computer_skills
+    st.session_state.study_hours = study_hours
+    st.session_state.attendance = attendance
+    st.session_state.previous_score = previous_score
+    st.session_state.assignment_score = assignment_score
+    
     # Determine Grade
     if percent_score >= 90:
         grade = "A+"
