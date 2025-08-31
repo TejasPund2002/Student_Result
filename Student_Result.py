@@ -376,13 +376,13 @@ with st.expander("Student Input & Prediction", expanded=True):
                 # Histogram: where this student lies vs dataset (if dataset exists)
                 charts_bytes = []
 
-# Gauge chart (Predicted %)
-fig_gauge = go.Figure(go.Indicator(
-    mode="gauge+number",
-    value=pred,
-    title={'text': "Predicted Percent"},
-    gauge={'axis': {'range':[0,100]}}
-))
+                # Gauge chart (Predicted %)
+                fig_gauge = go.Figure(go.Indicator(
+                    mode="gauge+number",
+                    value=pred,
+                    title={'text': "Predicted Percent"},
+                    gauge={'axis': {'range':[0,100]}}
+                ))
 charts_bytes.append(fig_gauge.to_image(format="png"))
 
 # Dataset histogram with predicted marker
