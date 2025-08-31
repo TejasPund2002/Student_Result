@@ -208,10 +208,10 @@ if 'percent_score' in locals():  # Ensure prediction is done
             fig_line.update_traces(marker=dict(size=12))
             st.plotly_chart(fig_line, use_container_width=True)
 
-# ===== Study Plan Table Section =====
+# ===== Weekly Study Plan Table =====
 if 'percent_score' in st.session_state:  # Ensure prediction is done
-    with st.expander("📅 Study Plan Table"):
-        st.subheader("Daily Improvement Plan to Reach Target Score")
+    with st.expander("📅 Weekly Study Plan"):
+        st.subheader("Plan Your Weekly Study to Reach Target Score")
         
         # Inputs
         if 'expected_score' not in st.session_state:
@@ -229,55 +229,64 @@ if 'percent_score' in st.session_state:  # Ensure prediction is done
         st.session_state.exam_date = exam_date
         
         from datetime import date
+        import math
+        
         days_left = (exam_date - date.today()).days
         if days_left <= 0:
             st.warning("Exam date should be in the future!")
         else:
             st.info(f"Days left until exam: {days_left} days")
             
-            # Calculate overall improvement needed
+            # Weeks left (round up)
+            weeks_left = math.ceil(days_left / 7)
+            
+            # Improvement needed
             percent_score = st.session_state.percent_score
             improvement_needed = max(0, expected_score - percent_score)
-            daily_target = improvement_needed / days_left
+            weekly_improvement = improvement_needed / weeks_left
             
-            st.write(f"Current predicted score: {percent_score:.2f}%")
-            st.write(f"Target score: {expected_score}%")
-            st.write(f"Total improvement needed: {improvement_needed:.2f}%")
-            st.write(f"Required daily improvement: {daily_target:.2f}% per day")
-            
-            # Prepare table data
-            table_data = {
-                "Attribute": ["Study Hours", "Attendance (%)", "Previous Score", "Assignment Score", "Writing Skill", "Reading Skill", "Computer Skill"],
-                "Current Value": [
-                    st.session_state.study_hours,
-                    st.session_state.attendance,
-                    st.session_state.previous_score,
-                    st.session_state.assignment_score,
-                    st.session_state.writing_skills,
-                    st.session_state.reading_skills,
-                    st.session_state.computer_skills
-                ],
-                "Recommended Improvement": [
-                    round(daily_target/2, 2),  # Example split for study hours
-                    round(daily_target/5, 2),  # Attendance has limited scope
-                    round(daily_target/5, 2),  # Previous score cannot change, but assignments can
-                    round(daily_target/3, 2),
-                    round(daily_target/10, 2),
-                    round(daily_target/10, 2),
-                    round(daily_target/10, 2)
-                ]
+            # Base current attributes
+            base_values = {
+                "Study Hours": st.session_state.study_hours,
+                "Attendance": st.session_state.attendance,
+                "Assignment Score": st.session_state.assignment_score,
+                "Writing": st.session_state.writing_skills,
+                "Reading": st.session_state.reading_skills,
+                "Computer": st.session_state.computer_skills
             }
             
+            # Assign weekly plan (example proportional increments)
+            weekly_plan = []
+            for week in range(1, weeks_left+1):
+                plan = {
+                    "Week": f"Week {week}",
+                    "Study Hours": round(base_values["Study Hours"] + weekly_improvement*0.5*week, 1),
+                    "Attendance": round(min(100, base_values["Attendance"] + weekly_improvement*0.2*week), 1),
+                    "Assignment Score": round(base_values["Assignment Score"] + weekly_improvement*0.3*week, 1),
+                    "Writing": round(min(10, base_values["Writing"] + weekly_improvement*0.1*week), 1),
+                    "Reading": round(min(10, base_values["Reading"] + weekly_improvement*0.1*week), 1),
+                    "Computer": round(min(10, base_values["Computer"] + weekly_improvement*0.1*week), 1)
+                }
+                weekly_plan.append(plan)
+            
+            # Create DataFrame
+            df_weekly = pd.DataFrame(weekly_plan)
+            
+            # Display interactive table using Plotly
             import plotly.graph_objects as go
             fig_table = go.Figure(data=[go.Table(
-                header=dict(values=["Attribute", "Current Value", "Recommended Daily Improvement"],
-                            fill_color='#4A90E2',
-                            font=dict(color='white', size=14),
-                            align='center'),
-                cells=dict(values=[table_data["Attribute"], table_data["Current Value"], table_data["Recommended Improvement"]],
-                           fill_color=[['#E8F6F3','#D5F5E3','#D5F5E3','#E8F6F3','#D5F5E3','#E8F6F3','#D5F5E3']],
-                           align='center',
-                           font=dict(color='black', size=12))
+                header=dict(
+                    values=list(df_weekly.columns),
+                    fill_color='#4A90E2',
+                    font=dict(color='white', size=14),
+                    align='center'
+                ),
+                cells=dict(
+                    values=[df_weekly[col] for col in df_weekly.columns],
+                    fill_color=[['#E8F6F3','#D5F5E3']*math.ceil(len(df_weekly)/2)],
+                    align='center',
+                    font=dict(color='black', size=12)
+                )
             )])
             
             fig_table.update_layout(margin=dict(l=0,r=0,t=20,b=20))
