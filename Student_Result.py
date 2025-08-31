@@ -148,12 +148,64 @@ if admin_logged_in:
             joblib.dump(model, "xgb_student_model.pkl")
             st.success("Model retrained and saved successfully!")
             
-# ===== Additional Interactive Graphs =====
-if st.button("Show Advanced Visualizations"):
-    with st.container():
+# # ===== Additional Interactive Graphs =====
+# if st.button("Show Advanced Visualizations"):
+#     with st.container():
+#         st.subheader("Advanced Student Analytics")
+        
+#         # Prepare sample data for visualization (based on input)
+#         data_dict = {
+#             "Skills": ["Writing", "Reading", "Computer", "Attendance", "Assignments"],
+#             "Scores": [writing_skills, reading_skills, computer_skills, attendance, assignment_score]
+#         }
+#         df_skills = pd.DataFrame(data_dict)
+        
+#         # Row 1: Bar Chart + Pie Chart
+#         col1, col2 = st.columns(2)
+        
+#         with col1:
+#             fig_bar = px.bar(
+#                 df_skills, x="Skills", y="Scores", text="Scores", 
+#                 color="Scores", color_continuous_scale="Plasma", title="Skills & Scores"
+#             )
+#             fig_bar.update_traces(textposition='outside')
+#             fig_bar.update_layout(yaxis=dict(range=[0,100]))
+#             st.plotly_chart(fig_bar, use_container_width=True)
+        
+#         with col2:
+#             fig_pie = px.pie(
+#                 df_skills, names="Skills", values="Scores", 
+#                 color="Skills", color_discrete_sequence=px.colors.sequential.Viridis,
+#                 title="Skill Distribution"
+#             )
+#             fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+#             st.plotly_chart(fig_pie, use_container_width=True)
+        
+#         # Row 2: Radar Chart + Line Chart
+#         col3, col4 = st.columns(2)
+        
+#         with col3:
+#             fig_radar = px.line_polar(
+#                 df_skills, r="Scores", theta="Skills", line_close=True, 
+#                 color_discrete_sequence=px.colors.sequential.Plasma, title="Skill Radar Chart"
+#             )
+#             fig_radar.update_traces(fill='toself')
+#             st.plotly_chart(fig_radar, use_container_width=True)
+        
+#         with col4:
+#             fig_line = px.line(
+#                 df_skills, x="Skills", y="Scores", markers=True, 
+#                 title="Score Trend", color_discrete_sequence=["#FF6F61"]
+#             )
+#             fig_line.update_traces(marker=dict(size=12))
+#             st.plotly_chart(fig_line, use_container_width=True)
+
+# ===== Advanced Visualizations (After Prediction) =====
+if 'percent_score' in locals():  # Ensure prediction is done
+    with st.expander("📊 Show Advanced Visualizations"):
         st.subheader("Advanced Student Analytics")
         
-        # Prepare sample data for visualization (based on input)
+        # Prepare data for visualizations
         data_dict = {
             "Skills": ["Writing", "Reading", "Computer", "Attendance", "Assignments"],
             "Scores": [writing_skills, reading_skills, computer_skills, attendance, assignment_score]
@@ -162,7 +214,6 @@ if st.button("Show Advanced Visualizations"):
         
         # Row 1: Bar Chart + Pie Chart
         col1, col2 = st.columns(2)
-        
         with col1:
             fig_bar = px.bar(
                 df_skills, x="Skills", y="Scores", text="Scores", 
@@ -183,7 +234,6 @@ if st.button("Show Advanced Visualizations"):
         
         # Row 2: Radar Chart + Line Chart
         col3, col4 = st.columns(2)
-        
         with col3:
             fig_radar = px.line_polar(
                 df_skills, r="Scores", theta="Skills", line_close=True, 
