@@ -289,251 +289,64 @@ if 'percent_score' in st.session_state:  # Ensure prediction is done
             
             st.plotly_chart(fig_table, use_container_width=True)
 
-# ===== Robust PDF Export (append this at the end of your file) =====
-import os
-import tempfile
-import math
-from datetime import date, timedelta
+#=======PDF GENERATOR=====
+import io
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet
 
-import plotly.express as px
-import plotly.io as pio
+def export_to_pdf(prediction, study_plan, df, figs):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    elements = []
+    styles = getSampleStyleSheet()
 
-# Try importing reportlab; if missing, show actionable error and stop
-try:
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
-    from reportlab.lib import colors
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.units import inch
-except Exception as e:
-    st.error(
-        "PDF generation libraries are missing. Add to requirements.txt and install:\n"
-        "reportlab\npillow\nkaleido\n\nThen restart the app."
-    )
-    st.stop()
+    # Title
+    elements.append(Paragraph("Student Performance Report", styles['Title']))
+    elements.append(Spacer(1, 12))
 
-# Helper: compute grade & status from score
-def compute_grade_status(score):
-    if score >= 90:
-        return "A+", "Pass"
-    elif score >= 80:
-        return "A", "Pass"
-    elif score >= 70:
-        return "B+", "Pass"
-    elif score >= 60:
-        return "B", "Pass"
-    elif score >= 50:
-        return "C", "Pass"
-    else:
-        return "D", "Fail"
+    # Prediction
+    elements.append(Paragraph(f"<b>Prediction:</b> {prediction}", styles['Normal']))
+    elements.append(Spacer(1, 12))
 
-# Build visuals from session_state (safe — rebuilds charts)
-def build_visuals_from_session():
-    ws = st.session_state
-    # fallback defaults (if some keys missing)
-    w = ws.get("writing_skills", 5)
-    r = ws.get("reading_skills", 5)
-    c = ws.get("computer_skills", 5)
-    att = ws.get("attendance", 75)
-    assign = ws.get("assignment_score", 50)
+    # Study Plan
+    elements.append(Paragraph("<b>Study Plan:</b>", styles['Heading2']))
+    for step in study_plan:
+        elements.append(Paragraph(f"- {step}", styles['Normal']))
+    elements.append(Spacer(1, 12))
 
-    df_skills = pd.DataFrame({
-        "Skill": ["Writing", "Reading", "Computer", "Attendance", "Assignments"],
-        "Score": [w, r, c, att, assign]
-    })
+    # Data Table
+    elements.append(Paragraph("<b>Dataset Preview:</b>", styles['Heading2']))
+    table_data = [df.columns.tolist()] + df.head(10).values.tolist()
+    table = Table(table_data)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+        ("GRID", (0, 0), (-1, -1), 1, colors.black),
+    ]))
+    elements.append(table)
+    elements.append(Spacer(1, 12))
 
-    # Bar
-    fig_bar = px.bar(
-        df_skills, x="Skill", y="Score", text="Score",
-        color="Score", color_continuous_scale="Plasma", title="Skills & Scores"
-    )
-    fig_bar.update_traces(textposition='outside')
-    fig_bar.update_layout(yaxis=dict(range=[0,100]), margin=dict(t=40))
+    # Add charts
+    for fig in figs:
+        img_bytes = fig.to_image(format="png")  # ✅ Kaleido NOT required on Streamlit Cloud
+        img_buffer = io.BytesIO(img_bytes)
+        elements.append(RLImage(img_buffer, width=400, height=250))
+        elements.append(Spacer(1, 12))
 
-    # Pie
-    fig_pie = px.pie(
-        df_skills, names="Skill", values="Score",
-        title="Skill Distribution"
-    )
-    fig_pie.update_traces(textposition='inside', textinfo='percent+label')
-    fig_pie.update_layout(margin=dict(t=40))
+    # Build PDF
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
 
-    # Radar
-    try:
-        fig_radar = px.line_polar(
-            df_skills, r="Score", theta="Skill", line_close=True, title="Skill Radar Chart"
-        )
-        fig_radar.update_traces(fill='toself')
-        fig_radar.update_layout(margin=dict(t=40))
-    except Exception:
-        # fallback to a simple polar-like line if polar not supported
-        fig_radar = px.line(df_skills, x="Skill", y="Score", title="Skill Radar (fallback)")
-
-    # Line
-    fig_line = px.line(
-        df_skills, x="Skill", y="Score", markers=True, title="Score Trend"
-    )
-    fig_line.update_layout(margin=dict(t=40))
-
-    return [fig_bar, fig_pie, fig_radar, fig_line], df_skills
-
-# Build weekly plan DataFrame from session_state or provided expected/exam date
-def build_weekly_plan_df(expected_score, exam_date):
-    ws = st.session_state
-    # compute days/weeks
-    days_left = (exam_date - date.today()).days
-    if days_left <= 0:
-        return None, days_left
-
-    weeks_left = max(1, math.ceil(days_left / 7))
-
-    percent_score = ws.get("percent_score", 0.0)
-    improvement_needed = max(0.0, expected_score - percent_score)
-    weekly_improvement = improvement_needed / weeks_left if weeks_left > 0 else 0.0
-
-    base_values = {
-        "Study Hours": ws.get("study_hours", 1.0),
-        "Attendance": ws.get("attendance", 75.0),
-        "Assignment Score": ws.get("assignment_score", 50.0),
-        "Writing": ws.get("writing_skills", 5.0),
-        "Reading": ws.get("reading_skills", 5.0),
-        "Computer": ws.get("computer_skills", 5.0)
-    }
-
-    weekly_plan = []
-    for week in range(1, weeks_left + 1):
-        plan = {
-            "Week": f"Week {week}",
-            "Study Hours": round(base_values["Study Hours"] + weekly_improvement * 0.5 * week, 2),
-            "Attendance": round(min(100, base_values["Attendance"] + weekly_improvement * 0.2 * week), 2),
-            "Assignment Score": round(base_values["Assignment Score"] + weekly_improvement * 0.3 * week, 2),
-            "Writing": round(min(10, base_values["Writing"] + weekly_improvement * 0.1 * week), 2),
-            "Reading": round(min(10, base_values["Reading"] + weekly_improvement * 0.1 * week), 2),
-            "Computer": round(min(10, base_values["Computer"] + weekly_improvement * 0.1 * week), 2)
-        }
-        weekly_plan.append(plan)
-
-    df_weekly = pd.DataFrame(weekly_plan)
-    return df_weekly, days_left
-
-# Main UI: show PDF generator only if prediction exists
-if 'percent_score' not in st.session_state:
-    st.info("Run prediction first (click 'Predict Result') — then you can generate PDF report.")
-else:
-    with st.expander("📥 Generate & Download PDF Report"):
-        # Let user confirm expected score and exam date used for the report (defaults from session_state if present)
-        default_expected = st.session_state.get("expected_score", 80)
-        default_exam = st.session_state.get("exam_date", (date.today() + timedelta(days=30)))
-        expected_for_pdf = st.number_input("Expected Score for Report (%)", min_value=0, max_value=100, value=default_expected, step=1)
-        exam_for_pdf = st.date_input("Exam Date for Report", value=default_exam)
-
-        if st.button("Generate PDF Report"):
-            # validate exam date
-            if (exam_for_pdf - date.today()).days <= 0:
-                st.error("Please select a future exam date.")
-            else:
-                # Build charts and skill df
-                try:
-                    figs, df_skills_for_pdf = build_visuals_from_session()
-                except Exception as e:
-                    st.error(f"Failed to build charts: {e}")
-                    raise
-
-                # Build weekly plan df
-                df_weekly, days_left = build_weekly_plan_df(expected_for_pdf, exam_for_pdf)
-                if df_weekly is None:
-                    st.error("Exam date must be in the future.")
-                else:
-                    # Prepare PDF using reportlab
-                    try:
-                        tmpdir = tempfile.mkdtemp()
-                        image_paths = []
-
-                        # Save each fig to PNG using plotly + kaleido
-                        for i, fig in enumerate(figs):
-                            img_path = os.path.join(tmpdir, f"chart_{i}.png")
-                            try:
-                                pio.write_image(fig, img_path, format="png", width=900, height=600, scale=2)
-                            except Exception as ex:
-                                st.error(
-                                    "Failed to export Plotly image. Make sure 'kaleido' is installed.\n"
-                                    "pip install kaleido"
-                                )
-                                raise ex
-                            image_paths.append(img_path)
-
-                        # PDF file path
-                        pdf_path = os.path.join(tmpdir, "Student_Report.pdf")
-                        styles = getSampleStyleSheet()
-                        title_style = ParagraphStyle(
-                            name='TitleStyle',
-                            fontSize=20,
-                            alignment=1,
-                            textColor=colors.HexColor("#4A90E2"),
-                            spaceAfter=12
-                        )
-                        heading_style = styles['Heading2']
-                        normal_style = styles['Normal']
-
-                        doc = SimpleDocTemplate(pdf_path, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
-                        elements = []
-
-                        # Title + meta
-                        elements.append(Paragraph("Student Result Prediction Report", title_style))
-                        elements.append(Paragraph(f"<b>Predicted Score:</b> {st.session_state['percent_score']:.2f}%", normal_style))
-                        grade, status = compute_grade_status(st.session_state['percent_score'])
-                        elements.append(Paragraph(f"<b>Grade:</b> {grade}    <b>Status:</b> {status}", normal_style))
-                        elements.append(Spacer(1, 12))
-
-                        # Add charts as images
-                        elements.append(Paragraph("Visualizations", heading_style))
-                        for p in image_paths:
-                            # width ~ 6.5 inch keeps good margin on A4
-                            elements.append(RLImage(p, width=6.5 * inch, height=4.0 * inch))
-                            elements.append(Spacer(1, 8))
-
-                        # Weekly study plan table
-                        elements.append(Spacer(1, 12))
-                        elements.append(Paragraph("Weekly Study Plan", heading_style))
-                        table_data = [df_weekly.columns.tolist()] + df_weekly.values.tolist()
-                        table = Table(table_data, hAlign='CENTER')
-                        table_style = TableStyle([
-                            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4A90E2")),
-                            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                            ("FONTSIZE", (0, 0), (-1, -1), 9),
-                            ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
-                            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                        ])
-                        table.setStyle(table_style)
-                        elements.append(table)
-
-                        # Footer: summary
-                        elements.append(Spacer(1, 12))
-                        elements.append(Paragraph(
-                            f"Days until exam: {days_left} days. Total improvement needed: {max(0.0, expected_for_pdf - st.session_state['percent_score']):.2f}%",
-                            normal_style
-                        ))
-
-                        # Build doc
-                        doc.build(elements)
-
-                        # Streamlit download
-                        with open(pdf_path, "rb") as f:
-                            st.download_button(
-                                label="⬇️ Download Student Report (PDF)",
-                                data=f,
-                                file_name="Student_Report.pdf",
-                                mime="application/pdf"
-                            )
-                    except Exception as e:
-                        st.error(f"Failed to create PDF: {e}")
-                    finally:
-                        # cleanup temp images (directory will remain until process exit, but we try to remove files)
-                        try:
-                            for p in image_paths:
-                                if os.path.exists(p):
-                                    os.remove(p)
-                        except Exception:
-                            pass
+pdf_buffer = export_to_pdf(prediction, study_plan, df, [fig_bar, fig_pie, fig_line])
+st.download_button(
+    "Download Report as PDF",
+    data=pdf_buffer,
+    file_name="student_report.pdf",
+    mime="application/pdf",
+)
