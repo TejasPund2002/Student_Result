@@ -148,58 +148,6 @@ if admin_logged_in:
             joblib.dump(model, "xgb_student_model.pkl")
             st.success("Model retrained and saved successfully!")
             
-# # ===== Additional Interactive Graphs =====
-# if st.button("Show Advanced Visualizations"):
-#     with st.container():
-#         st.subheader("Advanced Student Analytics")
-        
-#         # Prepare sample data for visualization (based on input)
-#         data_dict = {
-#             "Skills": ["Writing", "Reading", "Computer", "Attendance", "Assignments"],
-#             "Scores": [writing_skills, reading_skills, computer_skills, attendance, assignment_score]
-#         }
-#         df_skills = pd.DataFrame(data_dict)
-        
-#         # Row 1: Bar Chart + Pie Chart
-#         col1, col2 = st.columns(2)
-        
-#         with col1:
-#             fig_bar = px.bar(
-#                 df_skills, x="Skills", y="Scores", text="Scores", 
-#                 color="Scores", color_continuous_scale="Plasma", title="Skills & Scores"
-#             )
-#             fig_bar.update_traces(textposition='outside')
-#             fig_bar.update_layout(yaxis=dict(range=[0,100]))
-#             st.plotly_chart(fig_bar, use_container_width=True)
-        
-#         with col2:
-#             fig_pie = px.pie(
-#                 df_skills, names="Skills", values="Scores", 
-#                 color="Skills", color_discrete_sequence=px.colors.sequential.Viridis,
-#                 title="Skill Distribution"
-#             )
-#             fig_pie.update_traces(textposition='inside', textinfo='percent+label')
-#             st.plotly_chart(fig_pie, use_container_width=True)
-        
-#         # Row 2: Radar Chart + Line Chart
-#         col3, col4 = st.columns(2)
-        
-#         with col3:
-#             fig_radar = px.line_polar(
-#                 df_skills, r="Scores", theta="Skills", line_close=True, 
-#                 color_discrete_sequence=px.colors.sequential.Plasma, title="Skill Radar Chart"
-#             )
-#             fig_radar.update_traces(fill='toself')
-#             st.plotly_chart(fig_radar, use_container_width=True)
-        
-#         with col4:
-#             fig_line = px.line(
-#                 df_skills, x="Skills", y="Scores", markers=True, 
-#                 title="Score Trend", color_discrete_sequence=["#FF6F61"]
-#             )
-#             fig_line.update_traces(marker=dict(size=12))
-#             st.plotly_chart(fig_line, use_container_width=True)
-
 # ===== Advanced Visualizations (After Prediction) =====
 if 'percent_score' in locals():  # Ensure prediction is done
     with st.expander("📊 Show Advanced Visualizations"):
@@ -249,3 +197,78 @@ if 'percent_score' in locals():  # Ensure prediction is done
             )
             fig_line.update_traces(marker=dict(size=12))
             st.plotly_chart(fig_line, use_container_width=True)
+
+# ===== Study Plan Section =====
+if 'percent_score' in locals():  # Ensure prediction is done
+    with st.expander("📅 Generate Study Plan"):
+        st.subheader("Plan Your Study to Reach Target Score")
+        
+        # Inputs from user
+        expected_score = st.number_input("Enter Your Expected Score (%)", min_value=0, max_value=100, value=80, step=1)
+        exam_date = st.date_input("Select Exam Date")
+        
+        # Calculate days left
+        from datetime import date
+        days_left = (exam_date - date.today()).days
+        if days_left <= 0:
+            st.warning("Exam date should be in the future!")
+        else:
+            st.info(f"Days left until exam: {days_left} days")
+            
+            # Calculate improvement needed
+            improvement_needed = max(0, expected_score - percent_score)
+            st.write(f"Current predicted score: {percent_score:.2f}%")
+            st.write(f"Target score: {expected_score}%")
+            st.write(f"Score improvement needed: {improvement_needed:.2f}%")
+            
+            # Suggest daily improvement target
+            daily_target = improvement_needed / days_left
+            st.write(f"Recommended daily improvement: {daily_target:.2f}% per day")
+            
+            # Visualizations
+            plan_data = pd.DataFrame({
+                "Metric": ["Current Score", "Target Score"],
+                "Score": [percent_score, expected_score]
+            })
+            
+            # Bar Chart
+            import plotly.graph_objects as go
+            fig_plan = go.Figure()
+            fig_plan.add_trace(go.Bar(
+                x=plan_data["Metric"], y=plan_data["Score"], 
+                marker_color=["#4A90E2","#50E3C2"],
+                text=plan_data["Score"], textposition='auto'
+            ))
+            fig_plan.update_layout(title="Current vs Target Score", yaxis=dict(range=[0,100]))
+            st.plotly_chart(fig_plan, use_container_width=True)
+            
+            # Progress Line Chart (Daily Target Progress)
+            daily_plan = pd.DataFrame({
+                "Day": list(range(1, days_left+1)),
+                "Target Increment": [daily_target]*days_left
+            })
+            fig_line = px.line(
+                daily_plan, x="Day", y="Target Increment", markers=True,
+                title="Daily Score Improvement Plan", line_shape='spline'
+            )
+            st.plotly_chart(fig_line, use_container_width=True)
+            
+            # Skill Improvement Radar (based on input skills)
+            skill_plan = pd.DataFrame({
+                "Skill": ["Writing", "Reading", "Computer"],
+                "Current": [writing_skills, reading_skills, computer_skills],
+                "Target": [
+                    min(10, writing_skills + daily_target/10),
+                    min(10, reading_skills + daily_target/10),
+                    min(10, computer_skills + daily_target/10)
+                ]
+            })
+            fig_radar_plan = go.Figure()
+            fig_radar_plan.add_trace(go.Scatterpolar(
+                r=skill_plan["Current"], theta=skill_plan["Skill"], fill='toself', name="Current"
+            ))
+            fig_radar_plan.add_trace(go.Scatterpolar(
+                r=skill_plan["Target"], theta=skill_plan["Skill"], fill='toself', name="Target"
+            ))
+            fig_radar_plan.update_layout(title="Skill Improvement Plan", polar=dict(radialaxis=dict(visible=True, range=[0,10])))
+            st.plotly_chart(fig_radar_plan, use_container_width=True)
