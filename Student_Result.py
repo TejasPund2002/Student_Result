@@ -33,14 +33,30 @@ else:
 # ===== Main App =====
 st.title("Student Result Prediction App")
 
-# ===== Input Section =====
 st.header("Enter Student Details")
-study_hours = st.number_input("Study Hours", min_value=0.0, max_value=20.0, step=0.5)
-attendance = st.slider("Attendance (%)", 0, 100, 75)
-previous_score = st.number_input("Previous Score", min_value=0, max_value=100, step=1)
-assignment_score = st.number_input("Assignment Score", min_value=0, max_value=100, step=1)
-writing_skills = st.slider("Writing Skills (0-10)", 0, 10, 5)
-reading_skills = st.slider("Reading Skills (0-10)", 0, 10, 5)
+
+# First Row: StudyHours & Attendance
+col1, col2 = st.columns(2)
+with col1:
+    study_hours = st.number_input("Study Hours", min_value=0.0, max_value=20.0, step=0.5)
+with col2:
+    attendance = st.slider("Attendance (%)", 0, 100, 75)
+
+# Second Row: PreviousScore & AssignmentScore
+col3, col4 = st.columns(2)
+with col3:
+    previous_score = st.number_input("Previous Score", min_value=0, max_value=100, step=1)
+with col4:
+    assignment_score = st.number_input("Assignment Score", min_value=0, max_value=100, step=1)
+
+# Third Row: WritingSkills & ReadingSkills
+col5, col6 = st.columns(2)
+with col5:
+    writing_skills = st.slider("Writing Skills (0-10)", 0, 10, 5)
+with col6:
+    reading_skills = st.slider("Reading Skills (0-10)", 0, 10, 5)
+
+# Fourth Row: ComputerSkills (full width)
 computer_skills = st.slider("Computer Skills (0-10)", 0, 10, 5)
 
 # ===== Predict Button =====
@@ -91,4 +107,3 @@ if admin_logged_in:
         
         joblib.dump(model, "student_result_model.pkl")
         st.success("Model retrained and saved successfully!")
-
