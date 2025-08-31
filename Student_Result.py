@@ -184,19 +184,24 @@ def generate_weekly_plan(current_vals, predicted, target, exam_date):
         })
     return pd.DataFrame(plan)
 
+import tempfile
+
 def create_pdf_report(details, charts_bytes):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
 
-    # उदाहरण - Details लिहिण्यासाठी
     for key, value in details.items():
         pdf.cell(200, 10, txt=f"{key}: {value}", ln=True)
 
-    # Charts add करायचे असल्यास:
     for chart in charts_bytes:
-        pdf.image(chart, x=10, y=None, w=180)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
+            tmpfile.write(chart)   # chart bytes save
+            tmpfile.flush()
+            pdf.image(tmpfile.name, x=10, y=None, w=180)
+
     return pdf.output(dest="S").encode("latin1")
+
 
 def create_ics_plan(plan_df, student_name="student", start_date=None):
     cal = Calendar()
