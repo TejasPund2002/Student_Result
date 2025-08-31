@@ -19,17 +19,13 @@ from fpdf import FPDF
 from ics import Calendar, Event
 
 # ---------- Config ----------
-DATA_PATH = "/mnt/data/StudentDataset_100k.csv"   # change if needed
-MODEL_DIR = "models"
-XGB_MODEL_FILE = os.path.join(MODEL_DIR, "xgb_student_model.pkl")
-RF_MODEL_FILE = os.path.join(MODEL_DIR, "rf_student_model.pkl")
-LGB_MODEL_FILE = os.path.join(MODEL_DIR, "lgb_student_model.pkl")  # optional
+DATA_PATH = "StudentDataset_100k.csv"   # change if needed
+XGB_MODEL_FILE ="xgb_student_model.pkl"# optional
 
 HISTORY_FILE = "prediction_history.csv"
 USERS_FILE = "users_local.json"   # simple local user store for demo
 
 os.makedirs(MODEL_DIR, exist_ok=True)
-
 # ---------- Helper functions ----------
 def load_or_train_xgb():
     # Try load existing model
