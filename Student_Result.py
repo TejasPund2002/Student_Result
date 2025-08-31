@@ -208,12 +208,12 @@ if 'percent_score' in locals():  # Ensure prediction is done
             fig_line.update_traces(marker=dict(size=12))
             st.plotly_chart(fig_line, use_container_width=True)
 
-# ===== Study Plan Section (Persistent) =====
+# ===== Study Plan Table Section =====
 if 'percent_score' in st.session_state:  # Ensure prediction is done
-    with st.expander("📅 Generate Study Plan"):
-        st.subheader("Plan Your Study to Reach Target Score")
+    with st.expander("📅 Study Plan Table"):
+        st.subheader("Daily Improvement Plan to Reach Target Score")
         
-        # Inputs from user
+        # Inputs
         if 'expected_score' not in st.session_state:
             st.session_state.expected_score = 80
         if 'exam_date' not in st.session_state:
@@ -228,7 +228,6 @@ if 'percent_score' in st.session_state:  # Ensure prediction is done
         exam_date = st.date_input("Select Exam Date", value=st.session_state.exam_date)
         st.session_state.exam_date = exam_date
         
-        # Calculate days left
         from datetime import date
         days_left = (exam_date - date.today()).days
         if days_left <= 0:
@@ -236,63 +235,50 @@ if 'percent_score' in st.session_state:  # Ensure prediction is done
         else:
             st.info(f"Days left until exam: {days_left} days")
             
-            # Retrieve current predicted score from session_state
+            # Calculate overall improvement needed
             percent_score = st.session_state.percent_score
-            
-            # Calculate improvement needed
             improvement_needed = max(0, expected_score - percent_score)
+            daily_target = improvement_needed / days_left
+            
             st.write(f"Current predicted score: {percent_score:.2f}%")
             st.write(f"Target score: {expected_score}%")
-            st.write(f"Score improvement needed: {improvement_needed:.2f}%")
+            st.write(f"Total improvement needed: {improvement_needed:.2f}%")
+            st.write(f"Required daily improvement: {daily_target:.2f}% per day")
             
-            # Suggested daily improvement target
-            daily_target = improvement_needed / days_left
-            st.write(f"Recommended daily improvement: {daily_target:.2f}% per day")
-            
-            # Visualizations
-            plan_data = pd.DataFrame({
-                "Metric": ["Current Score", "Target Score"],
-                "Score": [percent_score, expected_score]
-            })
-            
-            # Bar Chart
-            import plotly.graph_objects as go
-            fig_plan = go.Figure()
-            fig_plan.add_trace(go.Bar(
-                x=plan_data["Metric"], y=plan_data["Score"], 
-                marker_color=["#4A90E2","#50E3C2"],
-                text=plan_data["Score"], textposition='auto'
-            ))
-            fig_plan.update_layout(title="Current vs Target Score", yaxis=dict(range=[0,100]))
-            st.plotly_chart(fig_plan, use_container_width=True)
-            
-            # Line Chart for daily plan
-            daily_plan = pd.DataFrame({
-                "Day": list(range(1, days_left+1)),
-                "Target Increment": [daily_target]*days_left
-            })
-            fig_line = px.line(
-                daily_plan, x="Day", y="Target Increment", markers=True,
-                title="Daily Score Improvement Plan", line_shape='spline'
-            )
-            st.plotly_chart(fig_line, use_container_width=True)
-            
-            # Skill Improvement Radar
-            skill_plan = pd.DataFrame({
-                "Skill": ["Writing", "Reading", "Computer"],
-                "Current": [st.session_state.writing_skills, st.session_state.reading_skills, st.session_state.computer_skills],
-                "Target": [
-                    min(10, st.session_state.writing_skills + daily_target/10),
-                    min(10, st.session_state.reading_skills + daily_target/10),
-                    min(10, st.session_state.computer_skills + daily_target/10)
+            # Prepare table data
+            table_data = {
+                "Attribute": ["Study Hours", "Attendance (%)", "Previous Score", "Assignment Score", "Writing Skill", "Reading Skill", "Computer Skill"],
+                "Current Value": [
+                    st.session_state.study_hours,
+                    st.session_state.attendance,
+                    st.session_state.previous_score,
+                    st.session_state.assignment_score,
+                    st.session_state.writing_skills,
+                    st.session_state.reading_skills,
+                    st.session_state.computer_skills
+                ],
+                "Recommended Improvement": [
+                    round(daily_target/2, 2),  # Example split for study hours
+                    round(daily_target/5, 2),  # Attendance has limited scope
+                    round(daily_target/5, 2),  # Previous score cannot change, but assignments can
+                    round(daily_target/3, 2),
+                    round(daily_target/10, 2),
+                    round(daily_target/10, 2),
+                    round(daily_target/10, 2)
                 ]
-            })
-            fig_radar_plan = go.Figure()
-            fig_radar_plan.add_trace(go.Scatterpolar(
-                r=skill_plan["Current"], theta=skill_plan["Skill"], fill='toself', name="Current"
-            ))
-            fig_radar_plan.add_trace(go.Scatterpolar(
-                r=skill_plan["Target"], theta=skill_plan["Skill"], fill='toself', name="Target"
-            ))
-            fig_radar_plan.update_layout(title="Skill Improvement Plan", polar=dict(radialaxis=dict(visible=True, range=[0,10])))
-            st.plotly_chart(fig_radar_plan, use_container_width=True)
+            }
+            
+            import plotly.graph_objects as go
+            fig_table = go.Figure(data=[go.Table(
+                header=dict(values=["Attribute", "Current Value", "Recommended Daily Improvement"],
+                            fill_color='#4A90E2',
+                            font=dict(color='white', size=14),
+                            align='center'),
+                cells=dict(values=[table_data["Attribute"], table_data["Current Value"], table_data["Recommended Improvement"]],
+                           fill_color=[['#E8F6F3','#D5F5E3','#D5F5E3','#E8F6F3','#D5F5E3','#E8F6F3','#D5F5E3']],
+                           align='center',
+                           font=dict(color='black', size=12))
+            )])
+            
+            fig_table.update_layout(margin=dict(l=0,r=0,t=20,b=20))
+            st.plotly_chart(fig_table, use_container_width=True)
