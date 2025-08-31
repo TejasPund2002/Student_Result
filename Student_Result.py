@@ -214,38 +214,27 @@ if 'percent_score' in st.session_state:  # Ensure prediction is done
         st.subheader("Plan Your Weekly Study to Reach Target Score")
         
         # Inputs
-        if 'expected_score' not in st.session_state:
-            st.session_state.expected_score = 80
-        if 'exam_date' not in st.session_state:
-            st.session_state.exam_date = pd.to_datetime("2025-10-01").date()
-        
         expected_score = st.number_input(
-            "Enter Your Expected Score (%)", min_value=0, max_value=100, 
-            value=st.session_state.expected_score, step=1
+            "Enter Your Expected Score (%)", min_value=0, max_value=100, value=80, step=1
         )
-        st.session_state.expected_score = expected_score
-        
-        exam_date = st.date_input("Select Exam Date", value=st.session_state.exam_date)
-        st.session_state.exam_date = exam_date
+        exam_date = st.date_input("Select Exam Date")
         
         from datetime import date
         import math
-        
         days_left = (exam_date - date.today()).days
+        
         if days_left <= 0:
             st.warning("Exam date should be in the future!")
         else:
             st.info(f"Days left until exam: {days_left} days")
-            
-            # Weeks left (round up)
             weeks_left = math.ceil(days_left / 7)
             
-            # Improvement needed
+            # Improvement calculation
             percent_score = st.session_state.percent_score
             improvement_needed = max(0, expected_score - percent_score)
-            weekly_improvement = improvement_needed / weeks_left
+            weekly_improvement = improvement_needed / weeks_left if weeks_left > 0 else 0
             
-            # Base current attributes
+            # Current attributes
             base_values = {
                 "Study Hours": st.session_state.study_hours,
                 "Attendance": st.session_state.attendance,
@@ -255,9 +244,9 @@ if 'percent_score' in st.session_state:  # Ensure prediction is done
                 "Computer": st.session_state.computer_skills
             }
             
-            # Assign weekly plan (rounded values)
+            # Weekly plan
             weekly_plan = []
-            for week in range(1, weeks_left+1):
+            for week in range(1, weeks_left + 1):
                 plan = {
                     "Week": f"Week {week}",
                     "Study Hours": round(base_values["Study Hours"] + weekly_improvement*0.5*week, 1),
@@ -269,12 +258,11 @@ if 'percent_score' in st.session_state:  # Ensure prediction is done
                 }
                 weekly_plan.append(plan)
             
-            # Create DataFrame
             df_weekly = pd.DataFrame(weekly_plan)
             
-            # Display interactive table using Plotly with theme
+            # Styled interactive table
             import plotly.graph_objects as go
-            colors = ['#E0F7FA', '#B2EBF2']  # Alternating row colors
+            colors = ['#E3F2FD', '#BBDEFB']  # light blue theme
             
             fig_table = go.Figure(data=[go.Table(
                 header=dict(
@@ -287,13 +275,13 @@ if 'percent_score' in st.session_state:  # Ensure prediction is done
                     values=[df_weekly[col] for col in df_weekly.columns],
                     fill_color=[colors * math.ceil(len(df_weekly)/2)],
                     align='center',
-                    font=dict(color='#0B3D91', size=12, family="Arial"),
-                    height=30
+                    font=dict(color='#0D47A1', size=12, family="Segoe UI"),
+                    height=28
                 )
             )])
             
             fig_table.update_layout(
-                margin=dict(l=0,r=0,t=20,b=20),
+                margin=dict(l=0, r=0, t=10, b=10),
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)'
             )
