@@ -6,7 +6,7 @@ from sklearn.ensemble import RandomForestRegressor  # Example model
 
 # ===== Load model =====
 try:
-    model = joblib.load("student_result_model.pkl")
+    model = joblib.load("xgb_student_model.pkl")
 except:
     model = RandomForestRegressor()  # default placeholder
 
