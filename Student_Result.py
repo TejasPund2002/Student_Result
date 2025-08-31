@@ -3,6 +3,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
+from io import BytesIO
+import plotly.io as pio
 import os
 import io
 from datetime import datetime, timedelta
@@ -26,6 +28,63 @@ HISTORY_FILE = "prediction_history.csv"
 USERS_FILE = "users_local.json"   # simple local user store for demo
 
 # ---------- Helper functions ----------
+# ---- Plotly to PNG safe wrapper + matplotlib fallbacks ----
+def fig_to_png_bytes(fig, pred_value=None, dataset_series=None):
+    """
+    Try Plotly/Kaleido conversion first; if it fails, fall back to matplotlib PNG bytes.
+    Returns PNG bytes.
+    """
+    try:
+        # prefer plotly.io conversion
+        return pio.to_image(fig, format="png")
+    except Exception as e:
+        # fallback - create a simple matplotlib image depending on fig type
+        # If it's a gauge (single value), create horizontal bar gauge-like image
+        try:
+            return fallback_generic_plot_bytes(pred_value, dataset_series)
+        except Exception as e2:
+            # Last resort: empty PNG
+            buf = BytesIO()
+            plt.figure(figsize=(4,2)); plt.text(0.5,0.5,"Image Unavailable", ha='center'); plt.axis('off')
+            plt.savefig(buf, format='png', bbox_inches='tight'); plt.close()
+            buf.seek(0)
+            return buf.read()
+
+def fallback_generic_plot_bytes(pred_value=None, dataset_series=None):
+    """
+    Create PNG bytes using matplotlib:
+     - If dataset_series provided -> draw histogram and vertical line at pred_value.
+     - Else if pred_value provided -> draw gauge-like horizontal bar.
+    """
+    buf = BytesIO()
+    if dataset_series is not None and len(dataset_series)>0:
+        fig, ax = plt.subplots(figsize=(6,3))
+        ax.hist(dataset_series.dropna(), bins=40)
+        if pred_value is not None:
+            ax.axvline(pred_value, color='r', linestyle='--', label='Predicted')
+            ax.legend()
+        ax.set_xlabel("PercentScore")
+        ax.set_ylabel("Count")
+        fig.tight_layout()
+        fig.savefig(buf, format='png', bbox_inches='tight')
+        plt.close(fig)
+    else:
+        # gauge-like bar
+        fig, ax = plt.subplots(figsize=(6,1.4))
+        value = float(pred_value) if pred_value is not None else 0.0
+        ax.barh([0], [value], height=0.6)
+        ax.set_xlim(0,100)
+        ax.set_yticks([])
+        ax.set_xlabel(f"Predicted: {value:.2f}%")
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        fig.tight_layout()
+        fig.savefig(buf, format='png', bbox_inches='tight')
+        plt.close(fig)
+    buf.seek(0)
+    return buf.read()
+
 def load_or_train_xgb():
     # Try load existing model
     if os.path.exists(XGB_MODEL_FILE):
@@ -297,24 +356,38 @@ with st.expander("Student Input & Prediction", expanded=True):
                     "TargetScore": f"{target_score}%",
                     "ExamDate": str(exam_date)
                 }
-                # small charts bytes creation: predicted gauge and histogram
+                # small charts creation: show charts in UI (plotly) and also create PNG bytes safely for PDF
+                # 1) Show gauge on UI
                 fig1 = go.Figure(go.Indicator(
                     mode = "gauge+number",
                     value = pred,
                     title = {'text': "Predicted Percent"},
                     gauge = {'axis': {'range': [0,100]}}
                 ))
-                buf1 = fig1.to_image(format="png")
+                st.plotly_chart(fig1, use_container_width=True)
+
+                # 2) Create PNG bytes safely for PDF (try plotly -> fallback to matplotlib)
+                try:
+                    buf1 = fig_to_png_bytes(fig1, pred_value=pred)
+                except Exception as e:
+                    # ensure buf1 exists
+                    buf1 = fallback_generic_plot_bytes(pred_value=pred)
+
                 # Histogram: where this student lies vs dataset (if dataset exists)
+                charts_bytes = [buf1]
                 if os.path.exists(DATA_PATH):
                     df_all = pd.read_csv(DATA_PATH)
                     fig2 = px.histogram(df_all, x='PercentScore', nbins=50, title="Dataset Percent Distribution")
-                    # mark predicted
                     fig2.add_vline(x=pred, line_dash="dash", annotation_text="Predicted", annotation_position="top right")
-                    buf2 = fig2.to_image(format="png")
-                    charts_bytes = [buf1, buf2]
-                else:
-                    charts_bytes = [buf1]
+                    # show in UI
+                    st.plotly_chart(fig2, use_container_width=True)
+                    # create safe PNG bytes
+                    try:
+                        buf2 = fig_to_png_bytes(fig2, pred_value=pred, dataset_series=df_all['PercentScore'])
+                    except Exception:
+                        buf2 = fallback_generic_plot_bytes(pred_value=pred, dataset_series=df_all['PercentScore'])
+                    charts_bytes.append(buf2)
+
                 pdf_bytes = create_pdf_report(details, charts_bytes)
                 st.download_button("Download Report (PDF)", pdf_bytes, file_name="report.pdf", mime="application/pdf")
 
