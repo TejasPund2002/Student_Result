@@ -400,9 +400,20 @@ if 'percent_score' in st.session_state:  # Only after prediction
             story.append(table)
             story.append(Spacer(1, 15))
 
-            # Weekly Plan Table
+            # Weekly Plan Table 
             story.append(Paragraph("<b>📅 Weekly Study Plan</b>", styles["Heading2"]))
-            data_weekly = [list(weekly_summary.columns)] + weekly_summary.values.tolist()
+
+            # Convert values to 2 decimal places if numeric
+            data_weekly = [list(weekly_summary.columns)]
+            for row in weekly_summary.values.tolist():
+                new_row = []
+                for val in row:
+                    if isinstance(val, (int, float)):  # जर नंबर असेल तर
+                        new_row.append(round(val, 2))  # 2 decimal places
+                    else:
+                        new_row.append(val)  # string तसेच ठेवायचे
+                data_weekly.append(new_row)
+    
             table2 = Table(data_weekly)
             table2.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, 0), colors.red),
