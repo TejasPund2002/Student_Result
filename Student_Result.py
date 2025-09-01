@@ -14,21 +14,6 @@ try:
 except:
     model = RandomForestRegressor()
 
-# ===== Sidebar Login =====
-st.sidebar.title("Login / User")
-user_type = st.sidebar.radio("Select User Type", ["Guest", "Admin"])
-admin_logged_in = False
-
-if user_type == "Admin":
-    username = st.sidebar.text_input("Username")
-    password = st.sidebar.text_input("Password", type="password")
-    if st.sidebar.button("Login"):
-        if username == "admin" and password == "admin123":
-            st.sidebar.success("Logged in as Admin")
-            admin_logged_in = True
-        else:
-            st.sidebar.error("Invalid Credentials")
-
 # ===== App Title =====
 import streamlit as st
 
@@ -139,24 +124,6 @@ if st.button("Predict Result"):
     })
     fig = px.bar(skills, x="Skill", y="Score", range_y=[0,10], color="Score", color_continuous_scale="Viridis")
     st.plotly_chart(fig, use_container_width=True)
-
-# ===== Admin Retrain Feature =====
-if admin_logged_in:
-    with st.expander("Admin: Retrain Model 🔧"):
-        uploaded_file = st.file_uploader("Upload New Dataset (CSV) for Retraining", type=["csv"])
-        if uploaded_file is not None:
-            data = pd.read_csv(uploaded_file)
-            st.write("Dataset Preview", data.head())
-            
-            X = data.iloc[:, :-1]
-            y = data.iloc[:, -1]
-            
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-            model = RandomForestRegressor()
-            model.fit(X_train, y_train)
-            
-            joblib.dump(model, "xgb_student_model.pkl")
-            st.success("Model retrained and saved successfully!")
             
 # ===== Advanced Visualizations (After Prediction) =====
 if 'percent_score' in locals():  # Ensure prediction is done
@@ -704,3 +671,79 @@ if uploaded is not None:
     st.download_button("⬇ Download Batch Predictions (CSV)", data=csv_bytes, file_name="batch_predictions.csv", mime="text/csv")
 
     st.success("Batch processing complete ✅")
+
+import streamlit as st
+import pandas as pd
+import joblib
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+import os
+
+# ====== Session State for Authentication ======
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "user_type" not in st.session_state:
+    st.session_state.user_type = None
+if "admins" not in st.session_state:
+    # default admin
+    st.session_state.admins = {"admin": "admin123"}  
+
+# ===== Sidebar Login =====
+st.sidebar.title("Login / User")
+
+if not st.session_state.logged_in:
+    user_type = st.sidebar.radio("Select User Type", ["Guest", "Admin"])
+    
+    if user_type == "Guest":
+        if st.sidebar.button("Continue as Guest"):
+            st.session_state.logged_in = True
+            st.session_state.user_type = "Guest"
+            st.sidebar.success("Logged in as Guest")
+
+    elif user_type == "Admin":
+        username = st.sidebar.text_input("Username")
+        password = st.sidebar.text_input("Password", type="password")
+        if st.sidebar.button("Login"):
+            if username in st.session_state.admins and st.session_state.admins[username] == password:
+                st.session_state.logged_in = True
+                st.session_state.user_type = "Admin"
+                st.session_state.username = username
+                st.sidebar.success(f"Logged in as Admin ({username})")
+            else:
+                st.sidebar.error("Invalid Credentials")
+
+else:
+    st.sidebar.success(f"Logged in as {st.session_state.user_type}")
+    if st.sidebar.button("Logout"):
+        st.session_state.logged_in = False
+        st.session_state.user_type = None
+        st.experimental_rerun()
+
+# ===== Admin Only Section =====
+if st.session_state.logged_in and st.session_state.user_type == "Admin":
+    st.subheader("🔧 Admin Panel")
+    with st.expander("Retrain Model"):
+        uploaded_file = st.file_uploader("Upload New Dataset (CSV) for Retraining", type=["csv"])
+        if uploaded_file is not None:
+            data = pd.read_csv(uploaded_file)
+            st.write("Dataset Preview", data.head())
+
+            X = data.iloc[:, :-1]
+            y = data.iloc[:, -1]
+
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+            model = RandomForestRegressor()
+            model.fit(X_train, y_train)
+
+            joblib.dump(model, "xgb_student_model.pkl")
+            st.success("✅ Model retrained and saved successfully!")
+
+    with st.expander("Manage Admins"):
+        new_username = st.text_input("New Admin Username")
+        new_password = st.text_input("New Admin Password", type="password")
+        if st.button("Add Admin"):
+            if new_username in st.session_state.admins:
+                st.warning("⚠️ This admin already exists!")
+            else:
+                st.session_state.admins[new_username] = new_password
+                st.success(f"✅ New Admin '{new_username}' added successfully!")
