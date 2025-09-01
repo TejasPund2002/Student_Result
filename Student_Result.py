@@ -447,3 +447,260 @@ if 'percent_score' in st.session_state:  # Only after prediction
                 st.download_button("⬇ Download PDF Report", f, file_name=pdf_path, mime="application/pdf")
 
             st.success("✅ Report generated successfully!")
+
+# ===== Batch Prediction for Multiple Students =====
+import io
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
+from datetime import datetime
+
+st.markdown("## 👥 Batch Prediction (Multiple Students)")
+st.markdown("Upload a CSV or Excel containing multiple students. See sample format below and download the template to fill your data.")
+
+# ---- SAMPLE FORMAT ----
+sample_cols = [
+    "student_id", "student_name", "study_hours", "attendance",
+    "previous_score", "assignment_score", "writing_skills",
+    "reading_skills", "computer_skills"
+]
+sample_df = pd.DataFrame([{
+    "student_id": "S001",
+    "student_name": "Sample Student",
+    "study_hours": 4.5,
+    "attendance": 85,
+    "previous_score": 65,
+    "assignment_score": 70,
+    "writing_skills": 6,
+    "reading_skills": 6,
+    "computer_skills": 7
+}])
+st.markdown("**Required columns (exact or case-insensitive match):** `student_id`, `study_hours`, `attendance`, `previous_score`, `assignment_score`, `writing_skills`, `reading_skills`, `computer_skills`. Optional: `student_name`.")
+st.download_button("⬇ Download Template CSV", data=sample_df.to_csv(index=False).encode('utf-8'), file_name="batch_template.csv", mime="text/csv")
+st.write("Sample row preview:")
+st.dataframe(sample_df, use_container_width=True)
+
+# ---- Upload ----
+uploaded = st.file_uploader("Upload CSV / Excel file with students data", type=["csv", "xlsx", "xls"])
+if uploaded is not None:
+    try:
+        # Try CSV first, then Excel (covers both)
+        if uploaded.name.lower().endswith(".csv"):
+            df_batch = pd.read_csv(uploaded)
+        else:
+            try:
+                df_batch = pd.read_excel(uploaded)
+            except Exception as e:
+                st.error("Unable to read Excel — make sure 'openpyxl' is installed in environment.")
+                raise e
+
+        st.success(f"File loaded — {df_batch.shape[0]} rows found.")
+    except Exception as e:
+        st.error("Error reading file. Make sure it's a valid CSV or Excel.")
+        st.stop()
+
+    # Normalize column names (lower case, strip)
+    df_batch.columns = [c.strip() for c in df_batch.columns]
+    colmap = {c.lower(): c for c in df_batch.columns}
+
+    # Required mapping keys (lowercase)
+    required = ["student_id", "study_hours", "attendance", "previous_score",
+                "assignment_score", "writing_skills", "reading_skills", "computer_skills"]
+
+    missing = [r for r in required if r not in colmap]
+    if missing:
+        st.error(f"Missing required columns (case-insensitive): {missing}. Make sure your file includes them.")
+        st.stop()
+
+    # Reindex / create working df with consistent column order
+    df_work = pd.DataFrame()
+    for r in required:
+        df_work[r] = df_batch[colmap[r]]
+    # student_name optional
+    if "student_name" in colmap:
+        df_work["student_name"] = df_batch[colmap["student_name"]]
+    else:
+        # if no name column, create placeholder from id
+        df_work["student_name"] = df_work["student_id"].astype(str)
+
+    # ---- Predictions ----
+    feature_order = ["study_hours", "attendance", "previous_score", "assignment_score",
+                     "writing_skills", "reading_skills", "computer_skills"]
+    X_batch = df_work[feature_order].astype(float).values
+    try:
+        preds = model.predict(X_batch)
+    except Exception as e:
+        st.error("Model prediction failed. Check model compatibility with input feature shapes.")
+        st.stop()
+
+    df_work["predicted_score"] = np.round(preds, 2)
+
+    def grade_from_score(s):
+        if s >= 90: return "A+"
+        if s >= 80: return "A"
+        if s >= 70: return "B+"
+        if s >= 60: return "B"
+        if s >= 50: return "C"
+        return "D"
+    df_work["grade"] = df_work["predicted_score"].apply(grade_from_score)
+    df_work["status"] = df_work["predicted_score"].apply(lambda x: "Pass" if x >= 40 else "Fail")
+
+    # ---- Show first 10 results in a styled "ChatGPT-UI" table ----
+    st.markdown("### 🔎 First 10 Predictions (Preview)")
+    preview = df_work.head(10).copy()
+    preview_display = preview[["student_id", "student_name", "predicted_score", "grade", "status"]].rename(columns={
+        "student_id": "ID", "student_name": "Name", "predicted_score": "Predicted (%)",
+        "grade": "Grade", "status": "Status"
+    })
+    # Create nice HTML table with theme (red-black)
+    def render_html_table(df):
+        header_bg = "#b30000"  # dark red
+        header_color = "white"
+        row_bg1 = "#111111"
+        row_bg2 = "#1a1a1a"
+        html = f"""
+        <style>
+        .batch-table {{border-collapse:collapse; width:100%; font-family: 'Segoe UI', sans-serif;}}
+        .batch-table th {{background:{header_bg}; color:{header_color}; padding:8px; text-align:left;}}
+        .batch-table td {{padding:8px; color:white; font-size:14px;}}
+        .batch-table tr:nth-child(even) {{background:{row_bg2};}}
+        .batch-table tr:nth-child(odd) {{background:{row_bg1};}}
+        .id-pill {{background:#ff4d4d; color:white; padding:4px 8px; border-radius:8px; font-weight:bold;}}
+        </style>
+        <table class="batch-table">
+            <thead><tr>"""
+        for c in df.columns:
+            html += f"<th>{c}</th>"
+        html += "</tr></thead><tbody>"
+        for i, row in df.iterrows():
+            html += "<tr>"
+            for c in df.columns:
+                val = row[c]
+                if c == "Predicted (%)":
+                    val = f"{float(val):.2f}%"
+                if c == "ID":
+                    html += f"<td><span class='id-pill'>{val}</span></td>"
+                else:
+                    html += f"<td>{val}</td>"
+            html += "</tr>"
+        html += "</tbody></table>"
+        return html
+
+    st.markdown(render_html_table(preview_display), unsafe_allow_html=True)
+
+    # ---- Key Metrics & Useful Insights ----
+    st.markdown("### 📈 Batch Summary & Insights")
+    total_students = len(df_work)
+    pass_count = (df_work["status"] == "Pass").sum()
+    avg_passing_pct = np.round((pass_count / total_students) * 100, 2) if total_students else 0
+    top_student = df_work.sort_values("predicted_score", ascending=False).iloc[0]
+    top_pct = top_student["predicted_score"]
+
+    # Metrics cards
+    mcol1, mcol2, mcol3, mcol4 = st.columns(4)
+    mcol1.metric("Total Students", total_students)
+    mcol2.metric("Avg Passing %", f"{avg_passing_pct}%")
+    mcol3.metric("Top Student %", f"{top_pct:.2f}%")
+    mcol4.metric("Passing Count", pass_count)
+
+    # Useful insights (simple auto-generated)
+    st.markdown("#### 🔍 Useful Insights")
+    insights = []
+    avg_study = df_work["study_hours"].mean()
+    avg_att = df_work["attendance"].mean()
+    insights.append(f"Average study hours: {avg_study:.2f} hrs")
+    insights.append(f"Average attendance: {avg_att:.2f}%")
+    low_perf = df_work[df_work["predicted_score"] < 40]
+    insights.append(f"Students predicted to fail: {len(low_perf)}")
+    top_ids = ", ".join(df_work.sort_values("predicted_score", ascending=False).head(3)["student_id"].astype(str).tolist())
+    insights.append(f"Top 3 student IDs: {top_ids}")
+
+    for it in insights:
+        st.markdown(f"- {it}")
+
+    # ---- Two-column layout of charts (overall stats) -> precisely 2 per row ----
+    st.markdown("### 📊 Batch Visualizations")
+    # Row 1
+    c1, c2 = st.columns(2)
+    with c1:
+        fig_hist = px.histogram(df_work, x="predicted_score", nbins=12, title="Predicted Score Distribution",
+                                labels={"predicted_score": "Predicted (%)"})
+        fig_hist.update_layout(template="plotly_dark", plot_bgcolor="black", paper_bgcolor="black",
+                               font=dict(color="white"))
+        st.plotly_chart(fig_hist, use_container_width=True)
+    with c2:
+        fig_scatter = px.scatter(df_work, x="study_hours", y="predicted_score", size="attendance",
+                                 hover_data=["student_id", "student_name"], title="Study Hours vs Predicted %",
+                                 labels={"study_hours": "Study Hours", "predicted_score": "Predicted (%)"})
+        fig_scatter.update_layout(template="plotly_dark", plot_bgcolor="black", paper_bgcolor="black",
+                                  font=dict(color="white"))
+        st.plotly_chart(fig_scatter, use_container_width=True)
+
+    # Row 2
+    c3, c4 = st.columns(2)
+    with c3:
+        fig_box = px.box(df_work, y="predicted_score", points="all", title="Predicted Score Boxplot")
+        fig_box.update_layout(template="plotly_dark", plot_bgcolor="black", paper_bgcolor="black",
+                              font=dict(color="white"))
+        st.plotly_chart(fig_box, use_container_width=True)
+    with c4:
+        # average metrics bar
+        avg_df = pd.DataFrame({
+            "Metric": ["Study Hours", "Attendance", "Assignment Score"],
+            "Value": [df_work["study_hours"].mean(), df_work["attendance"].mean(), df_work["assignment_score"].mean()]
+        })
+        fig_avg = px.bar(avg_df, x="Metric", y="Value", text="Value", title="Average Metrics")
+        fig_avg.update_layout(template="plotly_dark", plot_bgcolor="black", paper_bgcolor="black",
+                              font=dict(color="white"))
+        st.plotly_chart(fig_avg, use_container_width=True)
+
+    # ---- Top #1 Student Detailed Summary + Visuals ----
+    st.markdown("### 🏆 Top Student Detailed Summary")
+    top = top_student.copy()
+    st.markdown(f"**Top Student:** `{top['student_id']}` — **{top['student_name']}**")
+    st.markdown(f"- Predicted Score: **{top['predicted_score']:.2f}%**")
+    st.markdown(f"- Grade: **{top['grade']}**")
+    st.markdown(f"- Status: **{top['status']}**")
+    # Detailed cards with red-black theme
+    tcol1, tcol2, tcol3 = st.columns([1,1,1])
+    def mini_card(title, value):
+        card_html = f"""
+        <div style="background: linear-gradient(135deg,#0b0b0b,#1a1a1a); padding:12px; border-radius:12px; text-align:center; box-shadow:0 6px 18px rgba(255,0,0,0.12); border:1px solid rgba(255,0,0,0.2);">
+            <div style="color:#ff6666; font-weight:700; font-size:14px;">{title}</div>
+            <div style="color:white; font-size:20px; font-weight:700; margin-top:6px;">{value}</div>
+        </div>
+        """
+        return card_html
+    tcol1.markdown(mini_card("Study Hours", f"{top['study_hours']:.2f}"), unsafe_allow_html=True)
+    tcol2.markdown(mini_card("Attendance", f"{top['attendance']:.2f}%"), unsafe_allow_html=True)
+    tcol3.markdown(mini_card("Assignment Score", f"{top['assignment_score']:.2f}"), unsafe_allow_html=True)
+
+    # Two charts about top student (2 per row)
+    tc1, tc2 = st.columns(2)
+    with tc1:
+        skills_df = pd.DataFrame({
+            "Skill": ["Writing", "Reading", "Computer"],
+            "Score": [top["writing_skills"], top["reading_skills"], top["computer_skills"]]
+        })
+        fig_skills = px.bar(skills_df, x="Skill", y="Score", text="Score", title="Top Student: Skills")
+        fig_skills.update_layout(template="plotly_dark", plot_bgcolor="black", paper_bgcolor="black",
+                                 font=dict(color="white"), yaxis=dict(range=[0,10]))
+        st.plotly_chart(fig_skills, use_container_width=True)
+    with tc2:
+        # mini radial chart using pie to show passing gap to 100
+        fig_pie = px.pie(values=[top["predicted_score"], 100 - top["predicted_score"]],
+                         names=["Achieved", "Remaining"], title="Progress to 100%")
+        fig_pie.update_traces(textinfo="percent+label")
+        fig_pie.update_layout(template="plotly_dark", plot_bgcolor="black", paper_bgcolor="black",
+                              font=dict(color="white"))
+        st.plotly_chart(fig_pie, use_container_width=True)
+
+    # ---- Download batch results as CSV (with predictions) ----
+    csv_buf = df_work.copy()
+    csv_buf["predicted_score"] = csv_buf["predicted_score"].apply(lambda x: f"{x:.2f}")
+    csv_bytes = csv_buf.to_csv(index=False).encode('utf-8')
+    st.download_button("⬇ Download Batch Predictions (CSV)", data=csv_bytes, file_name="batch_predictions.csv", mime="text/csv")
+
+    st.success("Batch processing complete ✅")
