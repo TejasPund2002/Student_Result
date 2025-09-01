@@ -281,19 +281,30 @@ if 'percent_score' in st.session_state:  # Ensure prediction is done
         col1, col2, col3, col4, col5 = st.columns(5)
 
         card_style = """
-            <div style="
-                background: linear-gradient(135deg, #4A90E2, #50E3C2);
-                padding: 15px;
-                border-radius: 15px;
-                text-align: center;
-                color: white;
-                font-family: 'Segoe UI', sans-serif;
-                box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-            ">
-                <h4 style="margin:0;">{}</h4>
-                <p style="font-size:22px; font-weight:bold; margin:0;">{}</p>
-            </div>
-        """
+        <div style="
+        background: linear-gradient(135deg, #3a7bd5, #00d2ff);
+        padding: 20px;
+        border-radius: 18px;
+        text-align: center;
+        color: #fff;
+        font-family: 'Segoe UI', sans-serif;
+        box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+        transition: all 0.3s ease-in-out;
+        cursor: pointer;
+        "
+        onmouseover="this.style.transform='translateY(-8px) scale(1.03)'; 
+                 this.style.boxShadow='0 12px 25px rgba(0,0,0,0.25)';"
+        onmouseout="this.style.transform='translateY(0) scale(1)'; 
+                this.style.boxShadow='0 6px 15px rgba(0,0,0,0.15)';"
+        >
+        <h4 style="margin:0; font-size:18px; font-weight:500; letter-spacing:0.5px;">
+            {}
+        </h4>
+        <p style="font-size:24px; font-weight:700; margin:5px 0 0 0;">
+            {}
+        </p>
+       </div>
+       """
 
         col1.markdown(card_style.format("Attendance", f"{df_weekly['Attendance'].iloc[-1]}%"), unsafe_allow_html=True)
         col2.markdown(card_style.format("Assignments", df_weekly["Assignment Score"].iloc[-1]), unsafe_allow_html=True)
