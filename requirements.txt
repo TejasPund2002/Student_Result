@@ -13,3 +13,4 @@ ics
 kaleido
 reportlab
 Pillow
+openpyxl
