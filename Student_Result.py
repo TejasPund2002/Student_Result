@@ -686,7 +686,7 @@ if "user_type" not in st.session_state:
     st.session_state.user_type = None
 if "admins" not in st.session_state:
     # default admin
-    st.session_state.admins = {"admin": "admin123"}  
+    st.session_state.admins = {"admin": "Tejas0112"}
 
 # ===== Sidebar Login =====
 st.sidebar.title("Login / User")
