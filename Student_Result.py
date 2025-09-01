@@ -313,3 +313,126 @@ if 'percent_score' in st.session_state:  # Ensure prediction is done
         col3.markdown(card_style.format("Writing Skill", df_weekly["Writing"].iloc[-1]), unsafe_allow_html=True)
         col4.markdown(card_style.format("Reading Skill", df_weekly["Reading"].iloc[-1]), unsafe_allow_html=True)
         col5.markdown(card_style.format("Computer Skill", df_weekly["Computer"].iloc[-1]), unsafe_allow_html=True)
+
+# ===== Download Report Section =====
+if 'percent_score' in st.session_state:  # Only after prediction
+    st.markdown("## 📥 Download Detailed Report")
+
+    student_name = st.text_input("Enter Student Name for Report")
+    from datetime import datetime
+    report_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    if st.button("Generate Report (PDF & Excel)"):
+        if student_name.strip() == "":
+            st.error("⚠ Please enter student name before generating report.")
+        else:
+            # ===== Prepare Data =====
+            summary_data = {
+                "Student Name": student_name,
+                "Generated On": report_time,
+                "Predicted Score": f"{st.session_state.percent_score:.2f}%",
+                "Grade": "A+" if st.session_state.percent_score >= 90 else
+                         "A" if st.session_state.percent_score >= 80 else
+                         "B+" if st.session_state.percent_score >= 70 else
+                         "B" if st.session_state.percent_score >= 60 else
+                         "C" if st.session_state.percent_score >= 50 else "D",
+                "Status": "Pass" if st.session_state.percent_score >= 40 else "Fail",
+                "Study Hours": st.session_state.study_hours,
+                "Attendance": st.session_state.attendance,
+                "Assignment Score": st.session_state.assignment_score,
+                "Writing Skill": st.session_state.writing_skills,
+                "Reading Skill": st.session_state.reading_skills,
+                "Computer Skill": st.session_state.computer_skills,
+            }
+
+            # Weekly Plan Table
+            weekly_summary = pd.DataFrame(df_weekly)
+
+            # ===== Suggestions / Roadmap =====
+            suggestions = []
+            if st.session_state.percent_score < 50:
+                suggestions.append("🔴 Focus on basics daily for at least 2 hours.")
+                suggestions.append("🔴 Increase assignment completion rate.")
+            elif st.session_state.percent_score < 70:
+                suggestions.append("🟠 Revise notes regularly and practice writing skills.")
+                suggestions.append("🟠 Improve reading speed and comprehension.")
+            else:
+                suggestions.append("🟢 Maintain consistency in study hours.")
+                suggestions.append("🟢 Focus on advanced problem-solving.")
+
+            suggestions.append("✅ Follow the weekly plan strictly.")
+            suggestions.append("✅ Keep a balanced sleep and study routine.")
+
+            # ===== Save as Excel =====
+            excel_path = f"{student_name}_Report.xlsx"
+            with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
+                pd.DataFrame([summary_data]).to_excel(writer, sheet_name="Summary", index=False)
+                weekly_summary.to_excel(writer, sheet_name="Weekly Plan", index=False)
+                pd.DataFrame(suggestions, columns=["Study Suggestions"]).to_excel(writer, sheet_name="Suggestions", index=False)
+
+            # ===== Save as PDF =====
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+            from reportlab.lib.styles import getSampleStyleSheet
+            from reportlab.lib import colors
+
+            pdf_path = f"{student_name}_Report.pdf"
+            doc = SimpleDocTemplate(pdf_path)
+            styles = getSampleStyleSheet()
+            story = []
+
+            # Title
+            story.append(Paragraph(f"<para align='center'><font size=18 color='red'><b>Student Result Report</b></font></para>", styles["Title"]))
+            story.append(Spacer(1, 12))
+
+            # Summary Table
+            data_summary = [[k, v] for k, v in summary_data.items()]
+            table = Table(data_summary, hAlign="LEFT")
+            table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.black),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 12),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.whitesmoke),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ]))
+            story.append(table)
+            story.append(Spacer(1, 15))
+
+            # Weekly Plan Table
+            story.append(Paragraph("<b>📅 Weekly Study Plan</b>", styles["Heading2"]))
+            data_weekly = [list(weekly_summary.columns)] + weekly_summary.values.tolist()
+            table2 = Table(data_weekly)
+            table2.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.red),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
+            ]))
+            story.append(table2)
+            story.append(Spacer(1, 15))
+
+            # Suggestions
+            story.append(Paragraph("<b>📌 Study Suggestions & Roadmap</b>", styles["Heading2"]))
+            for s in suggestions:
+                story.append(Paragraph(f"- {s}", styles["Normal"]))
+                story.append(Spacer(1, 5))
+
+            story.append(Spacer(1, 30))
+
+            # Footer
+            footer_text = "<para align='center'><font size=10 color='grey'>Student Result Prediction | Developed by <b>Shekhar Shelke</b> | Powered by AI</font></para>"
+            story.append(Paragraph(footer_text, styles["Normal"]))
+
+            doc.build(story)
+
+            # ===== Download Buttons =====
+            with open(excel_path, "rb") as f:
+                st.download_button("⬇ Download Excel Report", f, file_name=excel_path, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+            with open(pdf_path, "rb") as f:
+                st.download_button("⬇ Download PDF Report", f, file_name=pdf_path, mime="application/pdf")
+
+            st.success("✅ Report generated successfully!")
