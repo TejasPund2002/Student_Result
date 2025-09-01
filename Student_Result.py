@@ -260,20 +260,32 @@ if 'percent_score' in st.session_state:  # Ensure prediction is done
 
         df_weekly = pd.DataFrame(weekly_plan)
 
-        # ===== Chart: Week vs Study Hours =====
+        # ===== Chart: Week vs Study Hours (Red-Black Theme) =====
         st.subheader("📊 Weekly Study Hours Progress")
+
         fig_study = px.bar(
             df_weekly, x="Week", y="Study Hours",
-            color="Study Hours", text="Study Hours",
-            color_continuous_scale="Tealgrn"
+            text="Study Hours",
+            color="Study Hours",
+            color_continuous_scale=["#FF3B3B", "#FF5C5C", "#FF7676"]
         )
-        fig_study.update_traces(textposition="outside")
+
+        fig_study.update_traces(
+            textposition="outside",
+            marker=dict(line=dict(width=1, color="black"))
+        )
+
         fig_study.update_layout(
-            yaxis=dict(title="Study Hours"),
-            xaxis=dict(title="Weeks"),
-            template="plotly_white",
-            height=400
+            yaxis=dict(title="Study Hours", color="white"),
+            xaxis=dict(title="Weeks", color="white"),
+            font=dict(color="white"),
+            template="plotly_dark",
+            plot_bgcolor="black",
+            paper_bgcolor="black",
+            height=420,
+            margin=dict(l=20, r=20, t=40, b=20)
         )
+
         st.plotly_chart(fig_study, use_container_width=True)
 
         # ===== Stylish Cards for Other Attributes =====
