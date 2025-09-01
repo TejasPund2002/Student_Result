@@ -208,83 +208,95 @@ if 'percent_score' in locals():  # Ensure prediction is done
             fig_line.update_traces(marker=dict(size=12))
             st.plotly_chart(fig_line, use_container_width=True)
 
-# ===== Weekly Study Plan Table (Styled & Rounded) ===== 
+# ===== Weekly Study Plan (Dynamic UI) ===== 
 if 'percent_score' in st.session_state:  # Ensure prediction is done
-    with st.expander("📅 Weekly Study Plan"):
-        st.subheader("Plan Your Weekly Study to Reach Target Score")
-        
-        # Inputs
-        expected_score = st.number_input(
-            "Enter Your Expected Score (%)", min_value=0, max_value=100, value=80, step=1
-        )
-        exam_date = st.date_input("Select Exam Date")
-        
-        from datetime import date
-        import math
-        days_left = (exam_date - date.today()).days
-        
-        if days_left <= 0:
-            st.warning("Exam date should be in the future!")
-        else:
-            st.info(f"Days left until exam: {days_left} days")
-            weeks_left = math.ceil(days_left / 7)
-            
-            # Improvement calculation
-            percent_score = st.session_state.percent_score
-            improvement_needed = max(0, expected_score - percent_score)
-            weekly_improvement = improvement_needed / weeks_left if weeks_left > 0 else 0
-            
-            # Current attributes
-            base_values = {
-                "Study Hours": st.session_state.study_hours,
-                "Attendance": st.session_state.attendance,
-                "Assignment Score": st.session_state.assignment_score,
-                "Writing": st.session_state.writing_skills,
-                "Reading": st.session_state.reading_skills,
-                "Computer": st.session_state.computer_skills
+    st.markdown("## Personal Study Plan")
+    st.markdown("Plan Your Weekly Study to Reach Target Score with Improved Visuals")
+
+    # Inputs
+    expected_score = st.number_input(
+        "Enter Your Expected Score (%)", min_value=0, max_value=100, value=80, step=1, key="expected_score"
+    )
+    exam_date = st.date_input("Select Exam Date", key="exam_date")
+
+    from datetime import date
+    import math
+    days_left = (exam_date - date.today()).days
+
+    if days_left <= 0:
+        st.warning("Exam date should be in the future!")
+    else:
+        st.info(f"Days left until exam: {days_left} days")
+        weeks_left = math.ceil(days_left / 7)
+
+        # Improvement calculation
+        percent_score = st.session_state.percent_score
+        improvement_needed = max(0, expected_score - percent_score)
+        weekly_improvement = improvement_needed / weeks_left if weeks_left > 0 else 0
+
+        # Current attributes
+        base_values = {
+            "Study Hours": st.session_state.study_hours,
+            "Attendance": st.session_state.attendance,
+            "Assignment Score": st.session_state.assignment_score,
+            "Writing": st.session_state.writing_skills,
+            "Reading": st.session_state.reading_skills,
+            "Computer": st.session_state.computer_skills
+        }
+
+        # Weekly Plan Data
+        weekly_plan = []
+        for week in range(1, weeks_left + 1):
+            plan = {
+                "Week": f"Week {week}",
+                "Study Hours": round(base_values["Study Hours"] + weekly_improvement * 0.5 * week, 2),
+                "Attendance": round(min(100, base_values["Attendance"] + weekly_improvement * 0.2 * week), 2),
+                "Assignment Score": round(base_values["Assignment Score"] + weekly_improvement * 0.3 * week, 2),
+                "Writing": round(min(10, base_values["Writing"] + weekly_improvement * 0.1 * week), 2),
+                "Reading": round(min(10, base_values["Reading"] + weekly_improvement * 0.1 * week), 2),
+                "Computer": round(min(10, base_values["Computer"] + weekly_improvement * 0.1 * week), 2)
             }
-            
-            # Weekly plan
-            weekly_plan = []
-            for week in range(1, weeks_left + 1):
-                plan = {
-                    "Week": f"Week {week}",
-                    "Study Hours": round(base_values["Study Hours"] + weekly_improvement*0.5*week, 2),
-                    "Attendance": round(min(100, base_values["Attendance"] + weekly_improvement*0.2*week), 2),
-                    "Assignment Score": round(base_values["Assignment Score"] + weekly_improvement*0.3*week, 2),
-                    "Writing": round(min(10, base_values["Writing"] + weekly_improvement*0.1*week), 2),
-                    "Reading": round(min(10, base_values["Reading"] + weekly_improvement*0.1*week), 2),
-                    "Computer": round(min(10, base_values["Computer"] + weekly_improvement*0.1*week), 2)
-                }
-                weekly_plan.append(plan)
-            
-            df_weekly = pd.DataFrame(weekly_plan)
-            
-            # Styled interactive table
-            import plotly.graph_objects as go
-            colors = ['#E3F2FD', '#BBDEFB']  # light blue theme
-            
-            fig_table = go.Figure(data=[go.Table(
-                header=dict(
-                    values=list(df_weekly.columns),
-                    fill_color='#4A90E2',
-                    font=dict(color='white', size=14, family="Arial Black"),
-                    align='center',
-                    height=35   # ✅ Taller header row
-                ),
-                cells=dict(
-                    values=[df_weekly[col] for col in df_weekly.columns],
-                    fill_color=[colors * math.ceil(len(df_weekly)/2)],
-                    align='center',
-                    font=dict(color='#0D47A1', size=12, family="Segoe UI"),
-                    height=30   # ✅ Consistent row height
-                )
-            )])
-            
-            fig_table.update_layout(
-                margin=dict(l=0, r=0, t=10, b=10),
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)'
-            )
-            
-            st.plotly_chart(fig_table, use_container_width=True)
+            weekly_plan.append(plan)
+
+        df_weekly = pd.DataFrame(weekly_plan)
+
+        # ===== Chart: Week vs Study Hours =====
+        st.subheader("📊 Weekly Study Hours Progress")
+        fig_study = px.bar(
+            df_weekly, x="Week", y="Study Hours",
+            color="Study Hours", text="Study Hours",
+            color_continuous_scale="Tealgrn"
+        )
+        fig_study.update_traces(textposition="outside")
+        fig_study.update_layout(
+            yaxis=dict(title="Study Hours"),
+            xaxis=dict(title="Weeks"),
+            template="plotly_white",
+            height=400
+        )
+        st.plotly_chart(fig_study, use_container_width=True)
+
+        # ===== Stylish Cards for Other Attributes =====
+        st.subheader("🎯 Skills & Attributes (Need to Improve)")
+        col1, col2, col3, col4, col5 = st.columns(5)
+
+        card_style = """
+            <div style="
+                background: linear-gradient(135deg, #4A90E2, #50E3C2);
+                padding: 15px;
+                border-radius: 15px;
+                text-align: center;
+                color: white;
+                font-family: 'Segoe UI', sans-serif;
+                box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            ">
+                <h4 style="margin:0;">{}</h4>
+                <p style="font-size:22px; font-weight:bold; margin:0;">{}</p>
+            </div>
+        """
+
+        col1.markdown(card_style.format("Attendance", f"{df_weekly['Attendance'].iloc[-1]}%"), unsafe_allow_html=True)
+        col2.markdown(card_style.format("Assignments", df_weekly["Assignment Score"].iloc[-1]), unsafe_allow_html=True)
+        col3.markdown(card_style.format("Writing Skill", df_weekly["Writing"].iloc[-1]), unsafe_allow_html=True)
+        col4.markdown(card_style.format("Reading Skill", df_weekly["Reading"].iloc[-1]), unsafe_allow_html=True)
+        col5.markdown(card_style.format("Computer Skill", df_weekly["Computer"].iloc[-1]), unsafe_allow_html=True)
