@@ -401,7 +401,7 @@ if 'percent_score' in st.session_state:  # Only after prediction
             story.append(Spacer(1, 30))
 
             # Footer
-            footer_text = "<para align='center'><font size=10 color='grey'>Student Result Prediction | Developed by <b>Shekhar Shelke</b> | Powered by AI</font></para>"
+            footer_text = "<para align='center'><font size=10 color='grey'>Student Result Prediction | Developed by <b>Mr. Tejas Pund</b> | Powered by AI</font></para>"
             story.append(Paragraph(footer_text, styles["Normal"]))
 
             doc.build(story)
